@@ -1,123 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Notes Migrator | Convert Google Keep, Apple Notes, Evernote, and more</title>
-    <meta name="title" content="Notes Migrator | Convert Google Keep, Apple Notes, Evernote, and more">
-    <meta name="description" content="A free, secure, browser-based tool to convert your notes between Google Keep, Apple Notes, Evernote (.enex), and Markdown (Notion). 100% private, client-side conversion.">
-    <meta name="keywords" content="notes migrator, notes converter, google keep, apple notes, evernote, onenote, notion, markdown, convert, migrate, import, transfer, google takeout, enex, secure, private, client-side">
-    <meta name="author" content="Ghazi Khan">
-    <link rel="icon" href="assets/favicon-192.png" sizes="192x192" type="image/png">
-    <link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
-    <link rel="icon" href="assets/favicon-16.png" sizes="16x16" type="image/png">
-    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.7/dayjs.min.js"></script>
-    <script src="https://unpkg.com/turndown/dist/turndown.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <link rel="stylesheet" href="src/style.css">
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-KT0X49LEFM"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-KT0X49LEFM');
-    </script>
-  </head>
+    <title>Migrator</title>
+    <meta name="description" content="Universal Note Converter. Private & Offline.">
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/src/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fira+Code:wght@400&display=swap" rel="stylesheet">
+</head>
 <body>
-  <div class="app-container">
+
+  <!-- 1. Top Bar -->
     <header>
-      <div class="logo">
-        <img src="assets/logo.png" alt="Notes Migrator">
-        <button id="darkModeToggle" class="theme-toggle" aria-label="Toggle Dark Mode">
-          <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path d="M12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.515 4.929l1.414-1.414L7.05 5.636 5.636 7.05 3.515 4.93zM16.95 18.364l1.414-1.414 2.121 2.121-1.414 1.414-2.121-2.121zm2.121-14.85l1.414 1.415-2.121 2.121-1.414-1.414 2.121-2.121zM5.636 16.95l1.414 1.414-2.121 2.121-1.414-1.414 2.121-2.121zM23 11v2h-3v-2h3zM4 11v2H1v-2h3z"/></svg>
-          <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path d="M10 7a7 7 0 0 0 12 4.9v.1c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2h.1A6.979 6.979 0 0 0 10 7zm-6 5a8 8 0 0 0 15.062 3.762A9 9 0 0 1 8.238 4.938 7.999 7.999 0 0 0 4 12z"/></svg>
-        </button>
-      </div>
+        <div class="brand">
+            <!-- Logo Icon -->
+            <a href="https://migrator.mgks.dev">
+              <svg width="32" height="32" viewBox="74.666 42.667 380.8 426.667" class="icon" xmlns="http://www.w3.org/2000/svg"><g stroke-width="0"/><g stroke-linecap="round" stroke-linejoin="round"/><path d="M74.666 426.666V85.334c0-23.467 19.2-42.667 42.667-42.667h256c23.466 0 42.666 19.2 42.666 42.667v341.333c0 23.467-19.2 42.667-42.666 42.667h-256c-23.467 0-42.667-19.2-42.667-42.667" fill="#fbcc00"/><path d="m455.466 256-114.133 96V160z" fill="#e08200"/><path d="M149.334 224h245.333v64H149.334z" fill="#e08200"/></svg>
+              <span>Migrator</span>
+            </a>
+        </div>
+        <div class="actions">
+            <!-- Help Circle -->
+                <a href="/wiki/guide/" class="icon-btn" title="Guide" aria-label="Guide">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            </a>
+
+            <!-- Sponsor -->
+            <a href="https://github.com/sponsors/mgks" target="_blank" class="icon-btn btn-sponsor" title="Sponsor">
+                <svg width="24" height="24" viewBox="0 0 7.5 7.5" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke-width="0"/><g stroke-linecap="round" stroke-linejoin="round"/><path d="M.625 2.855c0 1.52 1.256 2.33 2.176 3.055.324.255.637.496.949.496s.625-.241.949-.497c.92-.724 2.176-1.534 2.176-3.053S5.156.258 3.75 1.719C2.344.258.625 1.336.625 2.855" fill="#e32400"/></svg>
+            </a>
+
+            <!-- GitHub -->
+            <a href="https://github.com/mgks/NotesMigrator" target="_blank" class="icon-btn btn-github" title="Source Code">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+            </a>
+
+            <button id="themeBtn" class="icon-btn" title="Toggle Theme">
+                <!-- Sun (Visible in Dark Mode) -->
+                <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                <!-- Moon (Visible in Light Mode) -->
+                <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </button>
+        </div>
     </header>
 
-    <div class="support-block">
-        <a href="https://github.com/sponsors/mgks" class="support-button" target="_blank" rel="noopener noreferrer">
-            <span class="fas fa-heart">
-                <svg width="48" height="48" viewBox="0 0 6.898 6.898" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke-width="0"/><g stroke-linecap="round" stroke-linejoin="round"/><g fill="#f42774"><path opacity=".5" fill-rule="evenodd" clip-rule="evenodd" d="M2.33 5.245C1.523 4.623.575 3.892.575 2.626c0-1.398 1.581-2.389 2.874-1.045v4.311c-.287 0-.575-.221-.873-.457l-.246-.191Z"/><path d="M4.322 5.435c.846-.666 2.001-1.411 2.001-2.809S4.743.237 3.449 1.581v4.311c.287 0 .575-.221.873-.457"/></g></svg>
-            </span> Support the Project
-        </a>
+    <div id="dragOverlay" class="drag-overlay hidden">
+        <div class="drag-content">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            <h3>Drop files to add them</h3>
+        </div>
     </div>
-    
-    <div class="card">
-      <div class="conversion-selector">
-        <div class="selector-wrapper">
-          <label>From</label>
-          <div class="custom-select" id="convertFrom">
-            <div class="select-button" data-value="keep">
-              <span>Google Keep</span>
-              <svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
-            </div>
-            <div class="select-dropdown"></div>
-          </div>
-        </div>
-        <div class="exchange-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg>
-        </div>
-        <div class="selector-wrapper">
-          <label>To</label>
-          <div class="custom-select" id="convertTo">
-            <div class="select-button" data-value="apple">
-              <span>Apple Notes</span>
-               <svg class="chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
-            </div>
-            <div class="select-dropdown"></div>
-          </div>
-        </div>
-      </div>
 
-      <div class="info-box" id="instructions"></div>
+    <!-- 2. Main Stage -->
+    <main id="appStage">
+        
+        <!-- View A: Dropzone -->
+        <div id="uploadView" class="view active">
+            <div class="drop-trigger" id="dropTrigger">
+                <div class="icon-stack">
+                    <svg width="100" height="100" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke-width="0"/><g stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8v8m3-5-2.913-2.913v0a.123.123 0 0 0-.174 0v0L9 11m-6 4v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4" stroke="#e08200" stroke-width=".84" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <h1>Import your Notes</h1>
+                <p>Drag & drop <b>.zip</b>, <b>.enex</b>, or <b>.md</b> files here.</p>
+                <button id="browseBtn" class="btn secondary">Browse Files</button>
+                <input type="file" id="fileInput" hidden multiple>
+            </div>
+        </div>
 
-      <div id="dropZone">
-        <p id="dropZone-text">Drop your export file(s) here</p>
-        <p>Or click to browse files</p>
-        <p class="upload-limit">Maximum file size: 200 MB</p>
-      </div>
-      
-      <input type="file" id="fileInput" multiple class="hidden">
+        <!-- View B: Scanning -->
+        <div id="scanView" class="view">
+            <div class="loader"></div>
+            <p id="scanStatus" class="status-text">Scanning archive...</p>
+        </div>
+
+        <!-- View C: File List -->
+        <div id="listView" class="view">
+            <div class="list-header">
+                <div class="col-check">
+                    <input type="checkbox" id="selectAll" checked>
+                </div>
+                <div class="col-name">Name</div>
+                <div class="col-meta">Format</div>
+                <div class="col-size">Size</div>
+            </div>
+            <div id="fileList" class="file-list">
+                <!-- Items injected via JS -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 3. Bottom Dock -->
+    <div id="dock" class="dock">
+        <div class="dock-content">
+            <div class="dock-left">
+                <div class="selection-info">
+                    <span id="countDisplay">0</span> notes
+                </div>
+                <button id="addMoreBtn" class="btn secondary small">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Add
+                </button>
+            </div>
             
-      <div id="file-list-area" class="hidden">
-        <div class="file-list-header">
-            <h3 id="selectedFilesTitle">Found Notes</h3>
-            <div id="fileSelectionControls">
-                <button id="selectAllButton">Select All</button>
-                <button id="deselectAllButton">Deselect All</button>
+            <div class="dock-actions">
+                <span class="label">Convert to</span>
+                <div class="select-wrapper">
+                    <select id="formatSelect"></select>
+                    <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </div>
+                <button id="convertBtn" class="btn primary">
+                    <span>Download</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                </button>
             </div>
         </div>
-        <ul id="fileList"></ul>
-      </div>
-      
-      <div class="button-row">
-        <button id="convertButton" disabled>Convert and Download</button>
-        <div class="secondary-buttons">
-          <button id="clearButton" class="hidden secondary-button">Clear</button>
-          <button id="logsButton" class="hidden secondary-button">Logs</button>
-        </div>
-      </div>
-      
-      <div id="logsContainer" class="hidden">
-        <div class="logs-header">
-          <h3>Logs</h3>
-        </div>
-        <div id="logs"></div>
-      </div>
-
     </div>
-  </div>
-  
-  <div class="footer"><a href="https://github.com/mgks" target="_blank" rel="noopener noreferrer">Developed by @mgks</a> | <a href="https://github.com/mgks/notesmigrator" target="_blank" rel="noopener noreferrer">GitHub Repo</a></div>
-  
-  <!-- Converter Modules -->
-  <script src="converters/enex-converter.js"></script>
-  <script src="converters/keep-converter.js"></script>
-  <script src="converters/markdown-converter.js"></script>
-  <!-- Main Application Logic -->
-  <script src="src/main.js"></script>
+
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>
