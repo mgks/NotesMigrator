@@ -1,4 +1,6 @@
+node_modules
+dist
 .DS_Store
-context.md
-createContext.js
-node_modules/
+.vscode
+.env
+_old
