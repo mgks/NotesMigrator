@@ -1,0 +1,53 @@
+name: Deploy Migrator
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: "pages"
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # 1. Build Vite App (Creates 'dist/')
+      - name: Build App
+        run: npm run build
+
+      # 2. Generate SEO & Wiki Pages (Populates 'dist/wiki' and 'dist/convert')
+      - name: Generate Static Pages
+        run: node tools/generate-seo.js
+
+      # 3. Create 404 Fallback (For client-side routing safety)
+      - name: Create 404
+        run: cp dist/index.html dist/404.html
+
+      # 4. Deploy
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          cname: migrator.mgks.dev
+          force_orphan: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
