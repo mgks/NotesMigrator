@@ -1,0 +1,25 @@
+{
+  "name": "migrator-web",
+  "version": "0.3.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "generate": "node tools/generate-seo.js",
+    "deploy": "npm run build && npm run generate"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3",
+    "canvas-confetti": "^1.6.0",
+    "enex-io": "^0.1.0",
+    "file-saver": "^2.0.5",
+    "gkeep-parser": "^0.1.0",
+    "jszip": "^3.10.1",
+    "md-fusion": "^0.1.0"
+  },
+  "devDependencies": {
+    "vite": "^7.3.0",
+    "vite-plugin-pwa": "^1.2.0"
+  }
+}
