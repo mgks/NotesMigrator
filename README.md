@@ -1,16 +1,37 @@
-# Notes Migrator
+<div align="center">
 
-[![Privacy](https://img.shields.io/badge/Privacy-100%25%20Client--Side-brightgreen)](https://notesmigrator.mgks.dev/)
-[![License: MIT](https://img.shields.io/github/v/release/mgks/notesmigrator)](LICENSE)
-[![version](https://img.shields.io/badge/version-0.2.0-blue)](CHANGELOG.md)
+  <!-- PROJECT TITLE -->
+  <h1>Migrator</h1>
+  
+  <!-- ONE LINE SUMMARY -->
+  <p>
+    <b>Migrate notes between Google Keep, Apple Notes, Evernote, and Notion.</b>
+  </p>
+  
+  <!-- BADGES -->
+  <p>
+    <img src="https://img.shields.io/github/v/release/mgks/notesmigrator?style=flat-square&color=38bd24" alt="release version">
+    <img src="https://img.shields.io/github/stars/mgks/notesmigrator?style=flat-square&logo=github&color=blue" alt="stars">
+    <img src="https://img.shields.io/github/license/mgks/notesmigrator.svg?style=flat-square&color=blue" alt="license">
+  </p>
+
+  <!-- MENU -->
+  <p>
+    <h4>
+      <a href="https://migrator.mgks.dev">🚀 Open Web App</a>
+    </h4>
+  </p>
+
+  <!-- PREVIEW -->
+  <p>
+    <img width="800" alt="image" src="https://github.com/user-attachments/assets/fbfd6bc1-3616-4f32-816d-51dee8fcdb6b" />
+  </p>
+
+</div>
 
 A free, secure, browser-based tool to migrate your notes between popular services like **Google Keep**, **Apple Notes**, **Evernote**, and **Notion**. All processing happens entirely in your browser, ensuring your notes remain private.
 
-![Screenshot of the Notes Migrator Tool](assets/preview.png)
-
-**[Try it live!](https://notesmigrator.mgks.dev/)**
-
-## Key Features
+## Features
 
 *   **Privacy First:** Runs **entirely in your browser**. Your notes are never uploaded to any server.
 *   **Multi-Format Conversion:**
@@ -33,7 +54,7 @@ A free, secure, browser-based tool to migrate your notes between popular service
 
 ### Step 1: Choose Your Conversion Path
 
-1.  Visit the **[Notes Migrator](https://notesmigrator.mgks.dev/)** website.
+1.  Visit the **[Migrator](https://migrator.mgks.dev/)** website.
 2.  Using the dropdown menus, select the service you are migrating **From** (e.g., Google Keep) and the service you are migrating **To** (e.g., Apple Notes).
 3.  The instruction box will update automatically, guiding you on how to get your notes out of the source application.
 
@@ -84,4 +105,8 @@ Contributions are welcome! If you find a bug or have an idea for improvement, pl
 
 ## License
 
-This project is open source and available under the [MIT License](LICENSE).
+MIT
+
+> **{ github.com/mgks }**
+> 
+> ![Website Badge](https://img.shields.io/badge/Visit-mgks.dev-blue?style=flat&link=https%3A%2F%2Fmgks.dev) ![Sponsor Badge](https://img.shields.io/badge/%20%20Become%20a%20Sponsor%20%20-red?style=flat&logo=github&link=https%3A%2F%2Fgithub.com%2Fsponsors%2Fmgks)
