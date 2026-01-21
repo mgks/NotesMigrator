@@ -134,6 +134,12 @@ main {
     margin: .25em;
 
 }
+#uploadView h3 {
+    margin: 1em;
+    font-size: 1em;
+    max-width: 500px;
+    opacity: 0.75;
+}
 
 #uploadView p {
     color: var(--sub);
