@@ -10,6 +10,7 @@ import { toMarkdown, fromMarkdown } from 'md-fusion';
 import { saveAs } from 'file-saver';
 import confetti from 'canvas-confetti';
 import JSZip from 'jszip'; 
+import SparkMD5 from 'spark-md5';
 
 // --- ICONS ---
 const ICONS = {
@@ -207,14 +208,27 @@ function finalizeBatch(sourceIndex, entries) {
     // Update Global List
     const taggedEntries = entries.map(e => ({ ...e, sourceIndex }));
     state.allEntries = [...state.allEntries, ...taggedEntries];
-    
-    // Auto-Select New Files
-    taggedEntries.forEach(e => state.selectedIds.add(`${sourceIndex}:${e.path}`));
 
     // Update Format Detection
     const allNames = state.allEntries.map(e => e.name);
     const primaryName = state.allEntries.length > 0 ? state.allEntries[0].name : 'unknown';
     state.detectedFormat = detectFormat(primaryName, allNames);
+
+    // Auto-Select ONLY Visible Files
+    taggedEntries.forEach(e => {
+        let isVisible = false;
+        if (!e.name.startsWith('.')) {
+            if (isImage(e.name)) isVisible = true;
+            else if (state.detectedFormat === 'keep' && e.name.endsWith('.html')) isVisible = true;
+            else if (state.detectedFormat === 'markdown' && e.name.endsWith('.md')) isVisible = true;
+            else if (state.detectedFormat === 'enex' && e.name.endsWith('.enex')) isVisible = true;
+            else if (state.detectedFormat === 'json' && e.name.endsWith('.json')) isVisible = true;
+            else if (state.detectedFormat === 'unknown') isVisible = true;
+        }
+        if (isVisible) {
+            state.selectedIds.add(`${sourceIndex}:${e.path}`);
+        }
+    });
     
     renderList();
     switchView('list');
@@ -322,11 +336,14 @@ function toggleSelectAll() {
         return true;
     });
 
-    visibleEntries.forEach(e => {
-        const id = `${e.sourceIndex}:${e.path}`;
-        if (shouldSelect) state.selectedIds.add(id);
-        else state.selectedIds.delete(id);
-    });
+    if (shouldSelect) {
+        visibleEntries.forEach(e => {
+            const id = `${e.sourceIndex}:${e.path}`;
+            state.selectedIds.add(id);
+        });
+    } else {
+        state.selectedIds.clear();
+    }
 
     renderList(); // Refresh checkboxes
 }
@@ -343,6 +360,7 @@ async function startConversion() {
     try {
         const combinedContentMap = {};
         const combinedBinaryMap = {};
+        const extractionErrors = [];
 
         // Iterate sources to extract selected files
         for (let i = 0; i < state.sources.length; i++) {
@@ -357,20 +375,31 @@ async function startConversion() {
             if (pathsForSource.length === 0) continue;
 
             if (source.type === 'zip') {
-                // Modified worker logic handles binary extraction map
-                await requestWorkerExtraction(source.file, pathsForSource, combinedContentMap, combinedBinaryMap);
+                const errors = await requestWorkerExtraction(source.file, pathsForSource, combinedContentMap, combinedBinaryMap);
+                if (errors) extractionErrors.push(...errors);
             } else if (source.type === 'raw') {
                 for (const path of pathsForSource) {
                     const fileObj = source.files.find(f => f.name === path);
                     if (fileObj) {
-                        if (isImage(path)) {
-                            combinedBinaryMap[path] = await fileObj.arrayBuffer();
-                        } else {
-                            combinedContentMap[path] = await fileObj.text();
+                        try {
+                            if (isImage(path)) {
+                                combinedBinaryMap[path] = await fileObj.arrayBuffer();
+                            } else {
+                                combinedContentMap[path] = await fileObj.text();
+                            }
+                        } catch (err) {
+                            extractionErrors.push({ path, msg: err.message });
                         }
                     }
                 }
             }
+        }
+
+        if (extractionErrors.length > 0) {
+            console.warn("Extraction errors:", extractionErrors);
+            const msgList = extractionErrors.slice(0, 5).map(e => `${e.path}: ${e.msg}`).join('\n');
+            const hiddenCount = extractionErrors.length > 5 ? `\n...and ${extractionErrors.length - 5} more.` : '';
+            alert(`Some notes could not be processed and were skipped:\n\n${msgList}${hiddenCount}`);
         }
 
         finishConversion(combinedContentMap, combinedBinaryMap);
@@ -385,7 +414,7 @@ function requestWorkerExtraction(file, paths, resultMap, binaryMap) {
                 Object.assign(resultMap, e.data.contentMap);
                 if (e.data.binaryMap) Object.assign(binaryMap, e.data.binaryMap);
                 state.worker.removeEventListener('message', handler);
-                resolve();
+                resolve(e.data.errors || []);
             }
             if (e.data.type === 'error') {
                 state.worker.removeEventListener('message', handler);
@@ -445,7 +474,8 @@ async function finishConversion(contentMap, binaryMap) {
             finishSuccess();
         } 
         else if (target === 'enex') {
-            blob = new Blob([generateEnex(notes)], { type: 'application/xml' });
+            const enexContent = await generateEnexWithResources(notes, binaryMap);
+            blob = new Blob([enexContent], { type: 'application/xml' });
             fname += '.enex';
             saveAs(blob, fname);
             finishSuccess();
@@ -485,6 +515,59 @@ async function finishConversion(contentMap, binaryMap) {
         }
 
     } catch (err) { handleError(err); }
+}
+
+async function generateEnexWithResources(notes, binaryMap) {
+    const ts = new Date().toISOString().replace(/[-:.]/g, '').split('T')[0] + 'T' + 
+               new Date().toISOString().split('T')[1].replace(/[-:.]/g,'').slice(0,6) + 'Z';
+    
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE en-export SYSTEM "http://xml.evernote.com/pub/evernote-export3.dtd">\n<en-export export-date="${ts}" application="NotesMigrator" version="1.0">`;
+    for (const note of notes) {
+        let content = note.content || '';
+        let resourcesXml = '';
+        
+        if (note.attachments && note.attachments.length > 0) {
+            for (const att of note.attachments) {
+                const filename = att.filePath.split('/').pop();
+                const binKey = Object.keys(binaryMap).find(k => k.endsWith(filename));
+                if (binKey) {
+                    const arrayBuffer = binaryMap[binKey];
+                    const spark = new SparkMD5.ArrayBuffer();
+                    spark.append(arrayBuffer);
+                    const hashHex = spark.end();
+                    const base64 = Buffer.from(arrayBuffer).toString('base64');
+                    
+                    content += `<br/><br/><en-media type="${att.mimeType || 'image/jpeg'}" hash="${hashHex}" />`;
+                    
+                    resourcesXml += `
+<resource>
+  <data encoding="base64">${base64}</data>
+  <mime>${att.mimeType || 'image/jpeg'}</mime>
+  <resource-attributes><file-name>${filename}</file-name></resource-attributes>
+</resource>`;
+                }
+            }
+        }
+        
+        content = content.replace(/<br>/g, '<br/>');
+        content = content.replace(/<img[^>]*>/gi, '');
+        
+        const title = (note.title || 'Untitled').replace(/[<>&'"]/g, c => {
+            switch(c){case '<':return '&lt;';case '>':return '&gt;';case '&':return '&amp;';case "'":return '&apos;';case '"':return '&quot;';}
+        });
+        
+        xml += `
+<note>
+  <title>${title}</title>
+  <content><![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">
+<en-note>${content}</en-note>]]></content>
+  <created>${note.created ? note.created.replace(/[-:]/g,'').split('.')[0]+'Z' : ts}</created>
+  ${resourcesXml}
+</note>`;
+    }
+    xml += `\n</en-export>`;
+    return xml;
 }
 
 // --- UTILS ---

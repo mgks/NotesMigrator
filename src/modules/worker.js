@@ -29,20 +29,25 @@ self.onmessage = async (e) => {
             const zip = await JSZip.loadAsync(file);
             const contentMap = {};      // For text (notes)
             const binaryMap = {};       // For images (blobs)
+            const errors = [];
             
             for (const path of e.data.paths) {
                 const entry = zip.file(path);
                 if (entry) {
-                    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(path);
-                    if (isImage) {
-                        binaryMap[path] = await entry.async('blob');
-                    } else {
-                        contentMap[path] = await entry.async('string');
+                    try {
+                        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(path);
+                        if (isImage) {
+                            binaryMap[path] = await entry.async('blob');
+                        } else {
+                            contentMap[path] = await entry.async('string');
+                        }
+                    } catch (err) {
+                        errors.push({ path, msg: err.message });
                     }
                 }
             }
             
-            postMessage({ type: 'extract_complete', contentMap, binaryMap });
+            postMessage({ type: 'extract_complete', contentMap, binaryMap, errors });
         }
 
         // --- ZIP (Generate Final Export) ---
