@@ -127,9 +127,13 @@
                 </div>
                 <h1>Import your Notes</h1>
                 <h3>Migrate notes between Google Keep, Apple Notes, Evernote, Notion, and more. 100% private.</h3>
-                <p>Drag & drop <b>.zip</b>, <b>.enex</b>, or <b>.md</b> files here.</p>
-                <button id="browseBtn" class="btn secondary">Browse Files</button>
+                <p>Drag & drop <b>folders</b>, <b>.zip</b>, <b>.enex</b>, or <b>.md</b> files here.</p>
+                <div style="display:flex; justify-content:center; gap:10px;">
+                    <button id="browseBtn" class="btn secondary">Browse Files</button>
+                    <button id="browseFolderBtn" class="btn secondary">Browse Folder</button>
+                </div>
                 <input type="file" id="fileInput" hidden multiple>
+                <input type="file" id="folderInput" hidden webkitdirectory directory>
             </div>
         </div>
 
@@ -163,9 +167,13 @@
                 <div class="selection-info">
                     <span id="countDisplay">0</span> notes
                 </div>
-                <button id="addMoreBtn" class="btn secondary small">
+                <button id="addMoreBtn" class="btn secondary small" title="Add Files">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    Add
+                    Files
+                </button>
+                <button id="addFolderBtn" class="btn secondary small" style="margin-left: 5px;" title="Add Folder">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Folder
                 </button>
             </div>
             
