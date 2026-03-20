@@ -353,33 +353,6 @@ main {
     }
 }
 
-/* Mobile */
-@media (max-width: 600px) {
-    .dock {
-        bottom: 0;
-        padding: 20px;
-    }
-
-    .dock-content {
-        border-radius: 20px;
-        flex-direction: column;
-        gap: 15px;
-        width: 100%;
-        padding: 20px;
-    }
-
-    .dock-actions {
-        width: 100%;
-        justify-content: space-between;
-    }
-
-    .dock-actions .label {
-        display: none;
-    }
-
-    .dock-left { width: 100%; justify-content: space-between; }
-}
-
 .brand svg {
     float: left;
     margin-right: .75em;
@@ -601,6 +574,32 @@ body.wiki-page #appStage {
     .header-actions {
         gap: 4px;
     }
+
+    .dock {
+        bottom: 0;
+        padding: 20px;
+    }
+
+    .dock-content {
+        border-radius: 20px;
+        flex-direction: column;
+        gap: 15px;
+        width: 100%;
+        padding: 20px;
+    }
+
+    .dock-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .dock-actions .label {
+        display: none;
+    }
+
+    .dock-left { width: 100%; justify-content: space-between; }
+
+    .brand span { display: none; }
 }
 
 /* --- DRAG OVERLAY --- */
