@@ -395,7 +395,7 @@ a {
     }
 
     #listView {
-        padding: 60px 10px 140px;
+        padding: 0 .5rem 16rem;
     }
 
     /* 3. Dock Fixes */
