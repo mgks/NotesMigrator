@@ -40,7 +40,7 @@ A free, secure, browser-based tool to migrate your notes between popular service
 *   **Easy to Use:** A simple, modern interface to select your "From" and "To" formats and drag-and-drop your exported files.
 *   **Intelligent UI:**
     *   Dynamic instructions guide you on how to export from your source application.
-    *   Automatic detection of `.zip` files to process notes and attachments seamlessly.
+    *   Automatic detection of `.zip` files, and full recursive native folder drag-and-drop & button upload support to process nested notes alongside their attachments seamlessly.
     *   When dropping ZIP archives like Google Takeout, exclusively selects visually relevant files within large datasets so you aren't confused by background system configs.
 *   **Resilient Parsing:** Encountered unreadable or corrupted files within an archive will now be gracefully skipped rather than halting the entire extraction process, securely parsing your valid entries and warning you about only the broken ones.
 *   **Handles a Wide Range of Content:**
@@ -78,8 +78,8 @@ Follow the on-screen instructions. Here are some examples:
 
 ### Step 3: Convert and Download
 
-1.  Drag and drop the downloaded `.zip` file (or individual `.html`, `.enex`, `.md` files) onto the upload area on the Note Migrator page.
-2.  The tool will process the files and prepare them for conversion.
+1.  Drag and drop the downloaded `.zip` export archive, an entire fully extracted folder containing your nested metadata, or individually selected files onto the upload area. You can conversely use the **Browse Files** and **Browse Folder** buttons.
+2.  The tool will process the items, detect relevant notes, automatically filter out hidden configs, and prepare them for conversion.
 3.  Click the "**Convert and Download**" button.
 4.  Your browser will generate and download the converted notes in the correct format for your destination service.
 
