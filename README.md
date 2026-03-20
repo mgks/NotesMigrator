@@ -41,12 +41,15 @@ A free, secure, browser-based tool to migrate your notes between popular service
 *   **Intelligent UI:**
     *   Dynamic instructions guide you on how to export from your source application.
     *   Automatic detection of `.zip` files to process notes and attachments seamlessly.
+    *   When dropping ZIP archives like Google Takeout, exclusively selects visually relevant files within large datasets so you aren't confused by background system configs.
+*   **Resilient Parsing:** Encountered unreadable or corrupted files within an archive will now be gracefully skipped rather than halting the entire extraction process, securely parsing your valid entries and warning you about only the broken ones.
 *   **Handles a Wide Range of Content:**
     *   Note titles and content (HTML and Markdown).
     *   Creation/modification dates (best effort parsing).
     *   Checklists (checked and unchecked items).
     *   Tags and labels.
     *   Embedded and referenced images from exports.
+*   **Apple Notes Image Support:** Images embedded inside Google Keep are actively hashed via MD5 and encoded as XML `<resource>` tags for native compatibility upon importing into Apple Notes / Evernote.
 *   **No Installation Required:** Works directly in modern web browsers (Chrome, Firefox, Safari, Edge).
 *   **Dark Mode Support:** Automatically respects your system theme, with a manual toggle available.
 
@@ -91,6 +94,7 @@ Follow the on-screen instructions for importing. For example, to import into **A
 
 *   HTML5, CSS3, Vanilla JavaScript (ES6+)
 *   [JSZip](https://stuk.github.io/jszip/) - For reading `.zip` files.
+*   [SparkMD5](https://github.com/satazor/js-spark-md5) - For generating MD5 hashes required by Evernote XML imports.
 *   [Day.js](https://day.js.org/) - For date parsing and formatting.
 *   [Turndown](https://github.com/mixmark-io/turndown) - For converting HTML to Markdown.
 *   [Marked](https://github.com/markedjs/marked) - For converting Markdown to HTML.
