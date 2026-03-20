@@ -58,9 +58,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function cacheAppElements() {
     const ids = [
-        'dropTrigger', 'fileInput', 'fileList', 'dock', 'formatSelect', 
+        'dropTrigger', 'fileInput', 'folderInput', 'fileList', 'dock', 'formatSelect', 
         'countDisplay', 'selectAll', 'convertBtn', 'scanStatus', 
-        'browseBtn', 'addMoreBtn', 'dragOverlay', 'toast'
+        'browseBtn', 'browseFolderBtn', 'addMoreBtn', 'addFolderBtn', 'dragOverlay', 'toast'
     ];
     ids.forEach(id => els[id] = document.getElementById(id));
     
@@ -115,11 +115,18 @@ function setupUI() {
 
     // Button Listeners
     if(els.browseBtn) els.browseBtn.addEventListener('click', () => els.fileInput.click());
+    if(els.browseFolderBtn) els.browseFolderBtn.addEventListener('click', () => els.folderInput.click());
     if(els.addMoreBtn) els.addMoreBtn.addEventListener('click', () => els.fileInput.click());
+    if(els.addFolderBtn) els.addFolderBtn.addEventListener('click', () => els.folderInput.click());
     
     els.fileInput.addEventListener('change', e => {
         if(e.target.files.length > 0) handleNewFiles(e.target.files);
         els.fileInput.value = ''; // Reset for re-selection
+    });
+
+    if(els.folderInput) els.folderInput.addEventListener('change', e => {
+        if(e.target.files.length > 0) handleNewFiles(e.target.files);
+        els.folderInput.value = ''; // Reset for re-selection
     });
 
     if(els.selectAll) els.selectAll.addEventListener('change', toggleSelectAll);
@@ -136,9 +143,60 @@ function checkSeoPreselect() {
 
 // --- FILE HANDLING ---
 
-function handleDrop(e) {
-    const dt = e.dataTransfer;
-    if (dt.files.length > 0) handleNewFiles(dt.files);
+async function handleDrop(e) {
+    const items = e.dataTransfer.items;
+    let droppedFiles = [];
+
+    if (items && items.length > 0) {
+        switchView('scan');
+        els.scanStatus.innerText = 'Scanning folder contents...';
+        
+        const entries = [];
+        for (let i = 0; i < items.length; i++) {
+            const entry = items[i].webkitGetAsEntry?.();
+            if (entry) entries.push(entry);
+        }
+
+        async function readEntry(entry) {
+            if (entry.isFile) {
+                return new Promise(resolve => entry.file(resolve));
+            } else if (entry.isDirectory) {
+                const reader = entry.createReader();
+                let allSubEntries = [];
+                let readBatch = async () => {
+                    return new Promise(resolve => {
+                        reader.readEntries(async (entries) => {
+                            if (entries.length > 0) {
+                                allSubEntries.push(...entries);
+                                await readBatch();
+                            }
+                            resolve();
+                        });
+                    });
+                };
+                await readBatch();
+                
+                const promises = allSubEntries.map(e => readEntry(e));
+                const results = await Promise.all(promises);
+                return results.flat();
+            }
+            return [];
+        }
+
+        for (const entry of entries) {
+            const result = await readEntry(entry);
+            if (Array.isArray(result)) droppedFiles.push(...result);
+            else if (result) droppedFiles.push(result);
+        }
+    } else {
+        droppedFiles = Array.from(e.dataTransfer.files);
+    }
+
+    if (droppedFiles.length > 0) handleNewFiles(droppedFiles);
+    else {
+        showToast("No readable files found in drop.");
+        switchView('upload');
+    }
 }
 
 function handleNewFiles(fileList) {
