@@ -68,13 +68,13 @@ Follow the on-screen instructions. Here are some examples:
 *   **For Google Keep:**
     1.  Go to [Google Takeout](https://takeout.google.com/).
     2.  Click "**Deselect all**" and then select only "**Keep**".
-    3.  Create and download the `.zip` export file.
+    3.  Create and download the `.zip` export file (you can upload this `.zip` directly or extract it into a folder and upload the entire folder).
 
 *   **For Notion:**
     1.  In your Notion workspace, click "Settings & members" in the sidebar.
     2.  Go to "Settings" and find the "Export content" section.
     3.  Choose "Export all workspace content" and select **Markdown & CSV**.
-    4.  Download the resulting `.zip` file.
+    4.  Download the resulting `.zip` file (you can drop this `.zip` or uncompress it to drop the folder).
 
 ### Step 3: Convert and Download
 
