@@ -16,7 +16,8 @@ self.onmessage = async (e) => {
                         entries.push({
                             path: path,
                             name: path.split('/').pop(),
-                            size: entry._data.uncompressedSize
+                            size: entry._data.uncompressedSize,
+                            lastModified: entry.date ? entry.date.toISOString() : null
                         });
                     }
                 });
@@ -29,6 +30,7 @@ self.onmessage = async (e) => {
             const zip = await JSZip.loadAsync(file);
             const contentMap = {};      // For text (notes)
             const binaryMap = {};       // For images (blobs)
+            const dateMap = {};         // path -> ISO last-modified from ZIP central directory
             const errors = [];
             
             for (const path of e.data.paths) {
@@ -37,17 +39,18 @@ self.onmessage = async (e) => {
                     try {
                         const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(path);
                         if (isImage) {
-                            binaryMap[path] = await entry.async('blob');
+                            binaryMap[path] = await entry.async('arraybuffer');
                         } else {
                             contentMap[path] = await entry.async('string');
                         }
+                        if (entry.date) dateMap[path] = entry.date.toISOString();
                     } catch (err) {
                         errors.push({ path, msg: err.message });
                     }
                 }
             }
             
-            postMessage({ type: 'extract_complete', contentMap, binaryMap, errors });
+            postMessage({ type: 'extract_complete', contentMap, binaryMap, dateMap, errors });
         }
 
         // --- ZIP (Generate Final Export) ---

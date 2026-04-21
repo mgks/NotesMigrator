@@ -418,6 +418,7 @@ async function startConversion() {
     try {
         const combinedContentMap = {};
         const combinedBinaryMap = {};
+        const combinedDateMap = {};
         const extractionErrors = [];
 
         // Iterate sources to extract selected files
@@ -433,7 +434,7 @@ async function startConversion() {
             if (pathsForSource.length === 0) continue;
 
             if (source.type === 'zip') {
-                const errors = await requestWorkerExtraction(source.file, pathsForSource, combinedContentMap, combinedBinaryMap);
+                const errors = await requestWorkerExtraction(source.file, pathsForSource, combinedContentMap, combinedBinaryMap, combinedDateMap);
                 if (errors) extractionErrors.push(...errors);
             } else if (source.type === 'raw') {
                 for (const path of pathsForSource) {
@@ -444,6 +445,9 @@ async function startConversion() {
                                 combinedBinaryMap[path] = await fileObj.arrayBuffer();
                             } else {
                                 combinedContentMap[path] = await fileObj.text();
+                            }
+                            if (fileObj.lastModified) {
+                                combinedDateMap[path] = new Date(fileObj.lastModified).toISOString();
                             }
                         } catch (err) {
                             extractionErrors.push({ path, msg: err.message });
@@ -460,17 +464,18 @@ async function startConversion() {
             alert(`Some notes could not be processed and were skipped:\n\n${msgList}${hiddenCount}`);
         }
 
-        finishConversion(combinedContentMap, combinedBinaryMap);
+        finishConversion(combinedContentMap, combinedBinaryMap, combinedDateMap);
 
     } catch (err) { handleError(err); }
 }
 
-function requestWorkerExtraction(file, paths, resultMap, binaryMap) {
+function requestWorkerExtraction(file, paths, resultMap, binaryMap, dateMap) {
     return new Promise((resolve, reject) => {
         const handler = (e) => {
             if (e.data.type === 'extract_complete') {
                 Object.assign(resultMap, e.data.contentMap);
                 if (e.data.binaryMap) Object.assign(binaryMap, e.data.binaryMap);
+                if (e.data.dateMap) Object.assign(dateMap, e.data.dateMap);
                 state.worker.removeEventListener('message', handler);
                 resolve(e.data.errors || []);
             }
@@ -499,7 +504,7 @@ function setupWorker() {
     });
 }
 
-async function finishConversion(contentMap, binaryMap) {
+async function finishConversion(contentMap, binaryMap, dateMap = {}) {
     try {
         const source = state.detectedFormat;
         const target = els.formatSelect.value;
@@ -515,8 +520,25 @@ async function finishConversion(contentMap, binaryMap) {
                 else if (source === 'markdown') note = fromMarkdown(content);
                 else if (source === 'json') note = JSON.parse(content);
                 
-                if (Array.isArray(note)) notes.push(...note);
-                else if (note) notes.push(note);
+                // Prefer the source file's last-modified time (ZIP entry date
+                // or File.lastModified) over the parser's date. gkeep-parser
+                // silently falls back to `new Date()` when it can't parse the
+                // localized .heading text, which causes Apple Notes to show
+                // today's date for every imported note.
+                const fileDate = dateMap[path];
+                const applyDate = (n) => {
+                    if (!fileDate) return;
+                    n.created = fileDate;
+                    n.updated = fileDate;
+                };
+
+                if (Array.isArray(note)) {
+                    note.forEach(applyDate);
+                    notes.push(...note);
+                } else if (note) {
+                    applyDate(note);
+                    notes.push(note);
+                }
             } catch (e) {}
         });
 
@@ -614,13 +636,17 @@ async function generateEnexWithResources(notes, binaryMap) {
             switch(c){case '<':return '&lt;';case '>':return '&gt;';case '&':return '&amp;';case "'":return '&apos;';case '"':return '&quot;';}
         });
         
+        const createdTs = toEnexDate(note.created) || ts;
+        const updatedTs = toEnexDate(note.updated) || createdTs;
+
         xml += `
 <note>
   <title>${title}</title>
   <content><![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">
 <en-note>${content}</en-note>]]></content>
-  <created>${note.created ? note.created.replace(/[-:]/g,'').split('.')[0]+'Z' : ts}</created>
+  <created>${createdTs}</created>
+  <updated>${updatedTs}</updated>
   ${resourcesXml}
 </note>`;
     }
@@ -632,6 +658,15 @@ async function generateEnexWithResources(notes, binaryMap) {
 
 function isImage(name) {
     return /\.(jpg|jpeg|png|gif|webp)$/i.test(name);
+}
+
+// Convert any parseable date string to Evernote's compact UTC format
+// (YYYYMMDDTHHMMSSZ). Returns null if the input can't be parsed.
+function toEnexDate(value) {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
 }
 
 function getTimestamp() {

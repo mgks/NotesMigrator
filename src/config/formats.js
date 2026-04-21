@@ -90,7 +90,7 @@ export function detectFormat(mainFilename, fileList = []) {
     if (ext === 'enex') return 'enex';
     if (ext === 'json' && fileList.length <= 1) return 'json';
     if (ext === 'md') return 'markdown';
-    if (ext === 'html') return 'keep';
+    if (ext === 'html' || ext === '_keep') return 'keep';
 
     // 3. Zip Content Scanning
     if (ext === 'zip') {
