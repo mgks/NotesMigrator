@@ -520,16 +520,13 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
                 else if (source === 'markdown') note = fromMarkdown(content);
                 else if (source === 'json') note = JSON.parse(content);
                 
-                // Prefer the source file's last-modified time (ZIP entry date
-                // or File.lastModified) over the parser's date. gkeep-parser
-                // silently falls back to `new Date()` when it can't parse the
-                // localized .heading text, which causes Apple Notes to show
-                // today's date for every imported note.
-                const fileDate = dateMap[path];
+                // Prefer the parsed date if successfully extracted, falling back
+                // to the source file's last-modified time (ZIP entry date or
+                // File.lastModified) and finally the current timestamp.
+                const fileDate = dateMap[path] || new Date().toISOString();
                 const applyDate = (n) => {
-                    if (!fileDate) return;
-                    n.created = fileDate;
-                    n.updated = fileDate;
+                    n.created = n.created || fileDate;
+                    n.updated = n.updated || fileDate;
                 };
 
                 if (Array.isArray(note)) {
