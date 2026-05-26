@@ -458,10 +458,10 @@ async function startConversion() {
         }
 
         if (extractionErrors.length > 0) {
-            console.warn("Extraction errors:", extractionErrors);
-            const msgList = extractionErrors.slice(0, 5).map(e => `${e.path}: ${e.msg}`).join('\n');
-            const hiddenCount = extractionErrors.length > 5 ? `\n...and ${extractionErrors.length - 5} more.` : '';
-            alert(`Some notes could not be processed and were skipped:\n\n${msgList}${hiddenCount}`);
+            const hiddenCount = extractionErrors.length > 3 ? ` (+${extractionErrors.length - 3} more)` : '';
+            const names = extractionErrors.slice(0, 3).map(e => e.path.split('/').pop()).join(', ');
+            showToast(`⚠️ ${extractionErrors.length} file(s) skipped: ${names}${hiddenCount}`, 6000, 'warning');
+            console.warn('Extraction errors:', extractionErrors);
         }
 
         finishConversion(combinedContentMap, combinedBinaryMap, combinedDateMap);
@@ -510,7 +510,7 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
         const target = els.formatSelect.value;
         const notes = [];
 
-        console.log(`Parsing ${Object.keys(contentMap).length} notes...`);
+        const noteCount = Object.keys(contentMap).length;
         
         Object.entries(contentMap).forEach(([path, content]) => {
             try {
@@ -536,10 +536,12 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
                     applyDate(note);
                     notes.push(note);
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.warn(`Skipped note at "${path}": ${e.message}`);
+            }
         });
 
-        if (notes.length === 0) throw new Error("No valid notes parsed.");
+        if (notes.length === 0) throw new Error(`No valid notes could be parsed from ${noteCount} file(s). Check the console for details.`);
 
         let blob = null;
         let fname = `migrator-export-${getTimestamp()}`;
@@ -670,11 +672,19 @@ function getTimestamp() {
     return new Date().toISOString().slice(0, 10);
 }
 
-function showToast(msg, duration = 3000) {
+let _toastTimer = null;
+function showToast(msg, duration = 3500, type = 'info') {
     const t = document.getElementById('toast');
+    if (!t) return;
+    // Clear any pending hide
+    if (_toastTimer) { clearTimeout(_toastTimer); t.classList.remove('show'); }
     t.innerText = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), duration);
+    t.className = ''; // reset type classes
+    t.classList.add(`toast-${type}`, 'show');
+    _toastTimer = setTimeout(() => {
+        t.classList.remove('show');
+        _toastTimer = null;
+    }, duration);
 }
 
 function finishSuccess() {
@@ -683,7 +693,8 @@ function finishSuccess() {
 }
 
 function handleError(err) {
-    alert(err.message);
+    console.error('Conversion error:', err);
+    showToast(`❌ ${err.message}`, 7000, 'error');
     resetBtn();
 }
 

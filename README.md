@@ -35,77 +35,71 @@ A free, secure, browser-based tool to migrate your notes between popular service
 
 *   **Privacy First:** Runs **entirely in your browser**. Your notes are never uploaded to any server.
 *   **Multi-Format Conversion:**
-    *   **From:** Google Keep, Evernote (.enex), Markdown (Notion exports).
-    *   **To:** Apple Notes (.enex), Evernote (.enex), Markdown (Notion compatible).
-*   **Easy to Use:** A simple, modern interface to select your "From" and "To" formats and drag-and-drop your exported files.
+    *   **From:** Google Keep (`.html`, `._keep`), Evernote (`.enex`), Markdown (Notion / Obsidian exports).
+    *   **To:** Apple Notes (`.enex`), Evernote (`.enex`), Markdown (Obsidian / Notion compatible), JSON.
+*   **Accurate Timestamps:** Creation and modification dates are preserved with a two-tier strategy — the note's own embedded date is used when available, falling back to the ZIP entry or file last-modified date. Notes will never falsely show today's date.
+*   **Easy to Use:** A simple, modern interface with drag-and-drop, folder browsing, and automatic format detection.
 *   **Intelligent UI:**
     *   Dynamic instructions guide you on how to export from your source application.
-    *   Automatic detection of `.zip` files, and full recursive native folder drag-and-drop & button upload support to process nested notes alongside their attachments seamlessly.
-    *   When dropping ZIP archives like Google Takeout, exclusively selects visually relevant files within large datasets so you aren't confused by background system configs.
-*   **Resilient Parsing:** Encountered unreadable or corrupted files within an archive will now be gracefully skipped rather than halting the entire extraction process, securely parsing your valid entries and warning you about only the broken ones.
+    *   Full recursive native folder drag-and-drop and button upload support to process nested notes alongside their attachments.
+    *   Automatically selects relevant files within large Takeout archives, hiding background system configs.
+*   **Resilient Parsing:** Unreadable or corrupted files within an archive are gracefully skipped rather than halting the entire conversion. A clear **toast notification** lists the filenames that were missed, and full details are available in the browser console.
+*   **Rich User Feedback:** Typed toast notifications (info, success, warning, error) replace disruptive browser alerts, keeping the experience smooth and non-blocking.
 *   **Handles a Wide Range of Content:**
     *   Note titles and content (HTML and Markdown).
-    *   Creation/modification dates (best effort parsing).
+    *   Creation / modification dates (best-effort parsing with file-date fallback).
     *   Checklists (checked and unchecked items).
     *   Tags and labels.
     *   Embedded and referenced images from exports.
-*   **Apple Notes Image Support:** Images embedded inside Google Keep are actively hashed via MD5 and encoded as XML `<resource>` tags for native compatibility upon importing into Apple Notes / Evernote.
+*   **Apple Notes Image Support:** Images embedded in Google Keep exports are MD5-hashed and base64-encoded as `<resource>` tags in the ENEX output for seamless import into Apple Notes.
 *   **No Installation Required:** Works directly in modern web browsers (Chrome, Firefox, Safari, Edge).
-*   **Dark Mode Support:** Automatically respects your system theme, with a manual toggle available.
+*   **Dark / Light Mode:** Respects your system theme with a manual override toggle.
 
 ## How to Use
 
 ### Step 1: Choose Your Conversion Path
 
-1.  Visit the **[Migrator](https://migrator.mgks.dev/)** website.
-2.  Using the dropdown menus, select the service you are migrating **From** (e.g., Google Keep) and the service you are migrating **To** (e.g., Apple Notes).
-3.  The instruction box will update automatically, guiding you on how to get your notes out of the source application.
+1.  Visit **[migrator.mgks.dev](https://migrator.mgks.dev/)**.
+2.  Use the dropdown at the bottom to pick the format you want to convert **to**.
+3.  The on-screen guide will update with export instructions for your source app.
 
-### Step 2: Export Your Notes from the Source Service
+### Step 2: Export Your Notes
 
-Follow the on-screen instructions. Here are some examples:
-
-*   **For Google Keep:**
-    1.  Go to [Google Takeout](https://takeout.google.com/).
-    2.  Click "**Deselect all**" and then select only "**Keep**".
-    3.  Create and download the `.zip` export file (you can upload this `.zip` directly or extract it into a folder and upload the entire folder).
-
-*   **For Notion:**
-    1.  In your Notion workspace, click "Settings & members" in the sidebar.
-    2.  Go to "Settings" and find the "Export content" section.
-    3.  Choose "Export all workspace content" and select **Markdown & CSV**.
-    4.  Download the resulting `.zip` file (you can drop this `.zip` or uncompress it to drop the folder).
+*   **Google Keep:** Go to [Google Takeout](https://takeout.google.com/), deselect all, pick **Keep**, export, and download the `.zip`.
+*   **Notion:** Settings → Export all workspace content → **Markdown & CSV** → Download `.zip`.
+*   **Evernote:** File → Export Notes → `.enex`.
 
 ### Step 3: Convert and Download
 
-1.  Drag and drop the downloaded `.zip` export archive, an entire fully extracted folder containing your nested metadata, or individually selected files onto the upload area. You can conversely use the **Browse Files** and **Browse Folder** buttons.
-2.  The tool will process the items, detect relevant notes, automatically filter out hidden configs, and prepare them for conversion.
-3.  Click the "**Convert and Download**" button.
-4.  Your browser will generate and download the converted notes in the correct format for your destination service.
+1.  Drag & drop the `.zip`, a folder, or individual files onto the upload area (or use the browse buttons).
+2.  The tool scans, detects the format, and shows your notes in a checklist.
+3.  Select the notes you want, pick an output format, then click **Download**.
 
-### Step 4: Import Your Notes into the Destination Service
+### Step 4: Import into Destination
 
-Follow the on-screen instructions for importing. For example, to import into **Apple Notes**:
-
-*   **On Mac:** Open the **Notes** app, go to `File > Import to Notes...`, and select the downloaded `.enex` file.
-*   **On iPhone/iPad:** Save the `.enex` file to your device (e.g., via AirDrop or Files), tap to open it, tap the **Share** icon, and choose the **Notes** app.
+*   **Apple Notes (Mac):** Notes app → `File › Import to Notes…` → select the `.enex`.
+*   **Apple Notes (iPhone/iPad):** AirDrop or save the `.enex` to Files → tap → Share → Notes.
+*   **Obsidian:** Open the Markdown `.zip`, drop the extracted folder into your vault.
 
 ## Technology Stack
 
-*   HTML5, CSS3, Vanilla JavaScript (ES6+)
-*   [JSZip](https://stuk.github.io/jszip/) - For reading `.zip` files.
-*   [SparkMD5](https://github.com/satazor/js-spark-md5) - For generating MD5 hashes required by Evernote XML imports.
-*   [Day.js](https://day.js.org/) - For date parsing and formatting.
-*   [Turndown](https://github.com/mixmark-io/turndown) - For converting HTML to Markdown.
-*   [Marked](https://github.com/markedjs/marked) - For converting Markdown to HTML.
+| Package | Purpose |
+|---|---|
+| [gkeep-parser](https://github.com/mgks/gkeep-parser) | Parse Google Keep Takeout HTML into structured JSON |
+| [enex-io](https://github.com/mgks/enex-io) | Generate and parse Evernote / Apple Notes `.enex` files |
+| [md-fusion](https://github.com/mgks/md-fusion) | Convert notes between HTML/JSON and Markdown with YAML Frontmatter |
+| [JSZip](https://stuk.github.io/jszip/) | Read and write `.zip` archives in-browser |
+| [SparkMD5](https://github.com/satazor/js-spark-md5) | MD5 hashes required for Evernote image resources |
+| [Day.js](https://day.js.org/) | Date parsing and formatting |
+| [Vite](https://vitejs.dev/) + PWA | Build toolchain and offline support |
 
 ## Privacy
 
-This tool is designed with privacy as a core principle. All processing happens locally in your web browser. Your note files are never uploaded to any external server. We use optional, anonymous Google Analytics to understand feature usage (e.g., which conversion paths are most popular) to improve the tool. No personal data or note content is ever collected.
+All processing happens locally in your browser. Files are never uploaded to any server. Anonymous, aggregate Google Analytics is used solely to understand which conversion paths are most popular — no personal data or note content is collected.
 
 ## Contributing
 
-Contributions are welcome! If you find a bug or have an idea for improvement, please open an issue or submit a pull request on the [GitHub repository](https://github.com/mgks/NotesMigrator).
+Contributions are welcome! Please open an issue or pull request on [GitHub](https://github.com/mgks/NotesMigrator).
 
 ## License
 

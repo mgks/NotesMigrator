@@ -361,7 +361,7 @@ main {
 
 a {
     text-decoration: none;
-    color: initial;
+    color: inherit;
 
 }
 
@@ -621,26 +621,39 @@ body.wiki-page #appStage {
 /* TOAST NOTIFICATION */
 #toast {
     visibility: hidden;
-    min-width: 250px;
-    background-color: var(--text);
-    color: var(--bg);
+    min-width: 280px;
+    max-width: min(520px, 90vw);
+    background-color: #1a1a1a;
+    color: #fff;
     text-align: center;
-    border-radius: 50px;
-    padding: 12px 24px;
+    border-radius: 14px;
+    padding: 13px 24px;
     position: fixed;
     z-index: 10000;
     left: 50%;
     bottom: 30px;
-    transform: translateX(-50%);
-    font-size: 0.9rem;
+    transform: translateX(-50%) translateY(4px);
+    font-size: 0.875rem;
     font-weight: 500;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    line-height: 1.4;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
     opacity: 0;
-    transition: opacity 0.3s, bottom 0.3s;
+    transition: opacity 0.25s ease, bottom 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
 }
 
 #toast.show {
     visibility: visible;
     opacity: 1;
-    bottom: 50px; /* Slide up slightly */
+    bottom: 48px;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
 }
+
+/* Toast type variants */
+#toast.toast-info    { background: #1a1a1a; color: #fff; }
+#toast.toast-success { background: #16a34a; color: #fff; }
+#toast.toast-warning { background: #b45309; color: #fff; }
+#toast.toast-error   { background: #dc2626; color: #fff; }
+
+[data-theme="dark"] #toast.toast-info { background: #2d2d2d; }
