@@ -41,7 +41,8 @@ self.onmessage = async (e) => {
                         if (isImage) {
                             binaryMap[path] = await entry.async('arraybuffer');
                         } else {
-                            contentMap[path] = await entry.async('string');
+                            const bytes = await entry.async('uint8array');
+                            contentMap[path] = new TextDecoder('utf-8').decode(bytes);
                         }
                         if (entry.date) dateMap[path] = entry.date.toISOString();
                     } catch (err) {
