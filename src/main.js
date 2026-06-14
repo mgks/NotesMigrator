@@ -273,11 +273,19 @@ function finalizeBatch(sourceIndex, entries) {
     state.detectedFormat = detectFormat(primaryName, allNames);
 
     // Auto-Select ONLY Visible Files
+    const jsonPaths = new Set(state.allEntries.filter(e => e.path.endsWith('.json')).map(e => e.path));
     taggedEntries.forEach(e => {
         let isVisible = false;
         if (!e.name.startsWith('.')) {
             if (isImage(e.name)) isVisible = true;
-            else if (state.detectedFormat === 'keep' && e.name.endsWith('.html')) isVisible = true;
+            else if (state.detectedFormat === 'keep') {
+                if (e.name.endsWith('.json') && e.name !== 'archive_browser.html') {
+                    isVisible = true;
+                } else if (e.name.endsWith('.html') && e.name !== 'archive_browser.html') {
+                    const correspondingJson = e.path.substring(0, e.path.length - 5) + '.json';
+                    if (!jsonPaths.has(correspondingJson)) isVisible = true;
+                }
+            }
             else if (state.detectedFormat === 'markdown' && e.name.endsWith('.md')) isVisible = true;
             else if (state.detectedFormat === 'enex' && e.name.endsWith('.enex')) isVisible = true;
             else if (state.detectedFormat === 'json' && e.name.endsWith('.json')) isVisible = true;
@@ -298,13 +306,23 @@ function renderList() {
     els.fileList.innerHTML = '';
     
     // Filter view based on detected format + Images
+    const jsonPaths = new Set(state.allEntries.filter(e => e.path.endsWith('.json')).map(e => e.path));
     const displayEntries = state.allEntries.filter(e => {
         if (e.name.startsWith('.')) return false;
         
         const isImg = isImage(e.name);
         if (isImg) return true; // Always show images if they were accepted
 
-        if (state.detectedFormat === 'keep') return e.name.endsWith('.html');
+        if (state.detectedFormat === 'keep') {
+            if (e.name.endsWith('.json') && e.name !== 'archive_browser.html') {
+                return true;
+            }
+            if (e.name.endsWith('.html') && e.name !== 'archive_browser.html') {
+                const correspondingJson = e.path.substring(0, e.path.length - 5) + '.json';
+                return !jsonPaths.has(correspondingJson);
+            }
+            return false;
+        }
         if (state.detectedFormat === 'markdown' || state.detectedFormat === 'notion') return e.name.endsWith('.md');
         if (state.detectedFormat === 'enex') return e.name.endsWith('.enex');
         if (state.detectedFormat === 'json') return e.name.endsWith('.json');
@@ -384,10 +402,20 @@ function toggleSelectAll() {
     // Since we don't store ID in DOM, we rely on state sync.
     // Let's re-calculate visible IDs.
     
+    const jsonPaths = new Set(state.allEntries.filter(e => e.path.endsWith('.json')).map(e => e.path));
     const visibleEntries = state.allEntries.filter(e => {
         if (e.name.startsWith('.')) return false;
         if (isImage(e.name)) return true;
-        if (state.detectedFormat === 'keep') return e.name.endsWith('.html');
+        if (state.detectedFormat === 'keep') {
+            if (e.name.endsWith('.json') && e.name !== 'archive_browser.html') {
+                return true;
+            }
+            if (e.name.endsWith('.html') && e.name !== 'archive_browser.html') {
+                const correspondingJson = e.path.substring(0, e.path.length - 5) + '.json';
+                return !jsonPaths.has(correspondingJson);
+            }
+            return false;
+        }
         if (state.detectedFormat === 'markdown') return e.name.endsWith('.md');
         if (state.detectedFormat === 'enex') return e.name.endsWith('.enex');
         if (state.detectedFormat === 'json') return e.name.endsWith('.json');
@@ -515,7 +543,13 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
         Object.entries(contentMap).forEach(([path, content]) => {
             try {
                 let note = null;
-                if (source === 'keep') note = parseKeepHtml(content);
+                if (source === 'keep') {
+                    if (path.endsWith('.json')) {
+                        note = parseKeepJson(content);
+                    } else {
+                        note = parseKeepHtml(content);
+                    }
+                }
                 else if (source === 'enex') note = parseEnex(content);
                 else if (source === 'markdown') note = fromMarkdown(content);
                 else if (source === 'json') note = JSON.parse(content);
@@ -628,6 +662,9 @@ async function generateEnexWithResources(notes, binaryMap) {
             }
         }
         
+        content = content.replace(/<input[^>]*type="checkbox"[^>]*checked="true"[^>]*\/?>/gi, '<en-todo checked="true"/>');
+        content = content.replace(/<input[^>]*type="checkbox"[^>]*checked[^>]*\/?>/gi, '<en-todo checked="true"/>');
+        content = content.replace(/<input[^>]*type="checkbox"[^>]*\/?>/gi, '<en-todo/>');
         content = content.replace(/<br>/g, '<br/>');
         content = content.replace(/<img[^>]*>/gi, '');
         
@@ -638,6 +675,16 @@ async function generateEnexWithResources(notes, binaryMap) {
         const createdTs = toEnexDate(note.created) || ts;
         const updatedTs = toEnexDate(note.updated) || createdTs;
 
+        let tagsXml = '';
+        if (note.tags && Array.isArray(note.tags)) {
+            note.tags.forEach(t => {
+                const cleanTag = t.replace(/[<>&'"]/g, c => {
+                    switch(c){case '<':return '&lt;';case '>':return '&gt;';case '&':return '&amp;';case "'":return '&apos;';case '"':return '&quot;';}
+                });
+                tagsXml += `  <tag>${cleanTag}</tag>\n`;
+            });
+        }
+
         xml += `
 <note>
   <title>${title}</title>
@@ -646,11 +693,77 @@ async function generateEnexWithResources(notes, binaryMap) {
 <en-note>${content}</en-note>]]></content>
   <created>${createdTs}</created>
   <updated>${updatedTs}</updated>
-  ${resourcesXml}
+  ${tagsXml}  ${resourcesXml}
 </note>`;
     }
     xml += `\n</en-export>`;
     return xml;
+}
+
+function parseKeepJson(content) {
+    const data = JSON.parse(content);
+    
+    // Map textContent or listContent to content (HTML string)
+    let htmlContent = '';
+    if (data.listContent && Array.isArray(data.listContent)) {
+        htmlContent = '<ul>';
+        data.listContent.forEach(item => {
+            const checkedAttr = item.isChecked ? ' checked="true"' : '';
+            htmlContent += `<li><input type="checkbox"${checkedAttr}/> ${item.text || ''}</li>`;
+        });
+        htmlContent += '</ul>';
+    } else if (data.textContent) {
+        // Convert text content: escape HTML, replace newlines with <br/>
+        const escaped = (data.textContent || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        htmlContent = escaped.replace(/\n/g, '<br/>');
+    }
+
+    // Map labels to tags
+    const tags = [];
+    if (data.labels && Array.isArray(data.labels)) {
+        data.labels.forEach(l => {
+            if (l.name) tags.push(l.name);
+        });
+    }
+
+    // Map attachments
+    const attachments = [];
+    if (data.attachments && Array.isArray(data.attachments)) {
+        data.attachments.forEach(att => {
+            if (att.filePath) {
+                attachments.push({
+                    filePath: att.filePath,
+                    mimeType: att.mimetype || 'image/jpeg'
+                });
+            }
+        });
+    }
+
+    // Map dates (microseconds timestamps to ISO string)
+    let created = null;
+    let updated = null;
+    if (data.createdTimestampUsec) {
+        created = new Date(data.createdTimestampUsec / 1000).toISOString();
+    }
+    if (data.userEditedTimestampUsec) {
+        updated = new Date(data.userEditedTimestampUsec / 1000).toISOString();
+    }
+
+    return {
+        title: data.title || '',
+        content: htmlContent,
+        textContent: data.textContent || '',
+        tags: tags,
+        created: created,
+        updated: updated,
+        isArchived: !!data.isArchived,
+        isPinned: !!data.isPinned,
+        isTrashed: !!data.isTrashed,
+        attachments: attachments
+    };
 }
 
 // --- UTILS ---
