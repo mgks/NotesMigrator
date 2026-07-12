@@ -30,7 +30,8 @@ const state = {
     selectedIds: new Set(), // Format: "sourceIndex:path"
     worker: new Worker(new URL('./modules/worker.js', import.meta.url), { type: 'module' }),
     isProcessing: false,
-    detectedFormat: null
+    detectedFormat: null,
+    keepJsonPaths: new Set() // .json note paths, used to dedupe Keep HTML/JSON pairs
 };
 
 // --- DOM ELEMENTS ---
@@ -271,19 +272,11 @@ function finalizeBatch(sourceIndex, entries) {
     const allNames = state.allEntries.map(e => e.name);
     const primaryName = state.allEntries.length > 0 ? state.allEntries[0].name : 'unknown';
     state.detectedFormat = detectFormat(primaryName, allNames);
+    recomputeKeepJsonPaths();
 
     // Auto-Select ONLY Visible Files
     taggedEntries.forEach(e => {
-        let isVisible = false;
-        if (!e.name.startsWith('.')) {
-            if (isImage(e.name)) isVisible = true;
-            else if (state.detectedFormat === 'keep' && e.name.endsWith('.html')) isVisible = true;
-            else if (state.detectedFormat === 'markdown' && e.name.endsWith('.md')) isVisible = true;
-            else if (state.detectedFormat === 'enex' && e.name.endsWith('.enex')) isVisible = true;
-            else if (state.detectedFormat === 'json' && e.name.endsWith('.json')) isVisible = true;
-            else if (state.detectedFormat === 'unknown') isVisible = true;
-        }
-        if (isVisible) {
+        if (isVisibleEntry(e)) {
             state.selectedIds.add(`${sourceIndex}:${e.path}`);
         }
     });
@@ -297,20 +290,8 @@ function finalizeBatch(sourceIndex, entries) {
 function renderList() {
     els.fileList.innerHTML = '';
     
-    // Filter view based on detected format + Images
-    const displayEntries = state.allEntries.filter(e => {
-        if (e.name.startsWith('.')) return false;
-        
-        const isImg = isImage(e.name);
-        if (isImg) return true; // Always show images if they were accepted
-
-        if (state.detectedFormat === 'keep') return e.name.endsWith('.html');
-        if (state.detectedFormat === 'markdown' || state.detectedFormat === 'notion') return e.name.endsWith('.md');
-        if (state.detectedFormat === 'enex') return e.name.endsWith('.enex');
-        if (state.detectedFormat === 'json') return e.name.endsWith('.json');
-        
-        return true; 
-    });
+    // Filter view based on detected format + Images (single source of truth)
+    const displayEntries = state.allEntries.filter(isVisibleEntry);
 
     if (displayEntries.length === 0 && state.allEntries.length > 0) {
         els.fileList.innerHTML = `<div style="text-align:center; padding:30px; color:var(--sub)">No compatible notes found.</div>`;
@@ -384,15 +365,7 @@ function toggleSelectAll() {
     // Since we don't store ID in DOM, we rely on state sync.
     // Let's re-calculate visible IDs.
     
-    const visibleEntries = state.allEntries.filter(e => {
-        if (e.name.startsWith('.')) return false;
-        if (isImage(e.name)) return true;
-        if (state.detectedFormat === 'keep') return e.name.endsWith('.html');
-        if (state.detectedFormat === 'markdown') return e.name.endsWith('.md');
-        if (state.detectedFormat === 'enex') return e.name.endsWith('.enex');
-        if (state.detectedFormat === 'json') return e.name.endsWith('.json');
-        return true;
-    });
+    const visibleEntries = state.allEntries.filter(isVisibleEntry);
 
     if (shouldSelect) {
         visibleEntries.forEach(e => {
@@ -515,7 +488,11 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
         Object.entries(contentMap).forEach(([path, content]) => {
             try {
                 let note = null;
-                if (source === 'keep') note = parseKeepHtml(content);
+                if (source === 'keep') {
+                    // Keep Takeout ships .json notes alongside .html; JSON carries
+                    // richer data (tags, checkboxes, microsec timestamps).
+                    note = path.endsWith('.json') ? parseKeepJson(content) : parseKeepHtml(content);
+                }
                 else if (source === 'enex') note = parseEnex(content);
                 else if (source === 'markdown') note = fromMarkdown(content);
                 else if (source === 'json') note = JSON.parse(content);
@@ -628,12 +605,26 @@ async function generateEnexWithResources(notes, binaryMap) {
             }
         }
         
+        // Map checkbox inputs to Evernote <en-todo> items, matching any quote style.
+        content = content.replace(/<input\b[^>]*?\btype\s*=\s*["']?checkbox["']?[^>]*?\bchecked\b[^>]*\/?>/gi, '<en-todo checked="true"/>');
+        content = content.replace(/<input\b[^>]*?\btype\s*=\s*["']?checkbox["']?[^>]*\/?>/gi, '<en-todo/>');
         content = content.replace(/<br>/g, '<br/>');
         content = content.replace(/<img[^>]*>/gi, '');
         
         const title = (note.title || 'Untitled').replace(/[<>&'"]/g, c => {
             switch(c){case '<':return '&lt;';case '>':return '&gt;';case '&':return '&amp;';case "'":return '&apos;';case '"':return '&quot;';}
         });
+
+        // Preserve Keep labels as ENEX <tag> nodes, escaping XML entities.
+        let tagsXml = '';
+        if (Array.isArray(note.tags)) {
+            note.tags.forEach(t => {
+                const cleanTag = (t || '').replace(/[<>&'"]/g, c => {
+                    switch(c){case '<':return '&lt;';case '>':return '&gt;';case '&':return '&amp;';case "'":return '&apos;';case '"':return '&quot;';}
+                });
+                tagsXml += `\n  <tag>${cleanTag}</tag>`;
+            });
+        }
         
         const createdTs = toEnexDate(note.created) || ts;
         const updatedTs = toEnexDate(note.updated) || createdTs;
@@ -645,7 +636,7 @@ async function generateEnexWithResources(notes, binaryMap) {
 <!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">
 <en-note>${content}</en-note>]]></content>
   <created>${createdTs}</created>
-  <updated>${updatedTs}</updated>
+  <updated>${updatedTs}</updated>${tagsXml}
   ${resourcesXml}
 </note>`;
     }
@@ -657,6 +648,96 @@ async function generateEnexWithResources(notes, binaryMap) {
 
 function isImage(name) {
     return /\.(jpg|jpeg|png|gif|webp)$/i.test(name);
+}
+
+// Escape &, <, > for safe HTML interpolation.
+function escapeHtml(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+// Cache of .json note paths, used to hide duplicate Keep HTML/JSON pairs.
+function recomputeKeepJsonPaths() {
+    state.keepJsonPaths = new Set(
+        state.allEntries.filter(e => e.name.endsWith('.json')).map(e => e.path)
+    );
+}
+
+// Single source of truth for which entries show and auto-select in the file list.
+function isVisibleEntry(e) {
+    if (e.name.startsWith('.')) return false;
+    if (isImage(e.name)) return true;
+    const fmt = state.detectedFormat;
+    if (fmt === 'keep') {
+        // Skip the Takeout navigation page.
+        if (e.name.toLowerCase() === 'archive_browser.html') return false;
+        if (e.name.endsWith('.json')) return true;
+        if (e.name.endsWith('.html')) {
+            // Prefer the JSON copy when both exist for the same note.
+            const jsonSibling = e.path.slice(0, -5) + '.json';
+            return !state.keepJsonPaths.has(jsonSibling);
+        }
+        return false;
+    }
+    if (fmt === 'markdown' || fmt === 'notion') return e.name.endsWith('.md');
+    if (fmt === 'enex') return e.name.endsWith('.enex');
+    if (fmt === 'json') return e.name.endsWith('.json');
+    return true; // unknown format: show everything
+}
+
+// Parse Google Keep's native JSON export into an internal note object.
+function parseKeepJson(content) {
+    const data = JSON.parse(content);
+    let htmlContent = '';
+
+    if (Array.isArray(data.listContent)) {
+        // Checklist: render items as HTML checkboxes (escaped).
+        htmlContent = '<ul>';
+        data.listContent.forEach(item => {
+            const checkedAttr = item.isChecked ? ' checked="true"' : '';
+            htmlContent += `<li><input type="checkbox"${checkedAttr}/> ${escapeHtml(item.text)}</li>`;
+        });
+        htmlContent += '</ul>';
+    } else if (data.textContent) {
+        // Plain text note: escape HTML, convert newlines to <br/>.
+        htmlContent = escapeHtml(data.textContent).replace(/\n/g, '<br/>');
+    }
+
+    // Map Keep labels -> tags.
+    const tags = [];
+    if (Array.isArray(data.labels)) {
+        data.labels.forEach(l => { if (l.name) tags.push(l.name); });
+    }
+
+    // Map attachments (Keep uses lowercase "filepath" in some export versions).
+    const attachments = [];
+    if (Array.isArray(data.attachments)) {
+        data.attachments.forEach(att => {
+            const filePath = att.filePath || att.filepath || '';
+            if (filePath) {
+                attachments.push({ filePath, mimeType: att.mimetype || 'image/jpeg' });
+            }
+        });
+    }
+
+    // Microsecond timestamps -> ISO strings.
+    const created = data.createdTimestampUsec ? new Date(data.createdTimestampUsec / 1000).toISOString() : null;
+    const updated = data.userEditedTimestampUsec ? new Date(data.userEditedTimestampUsec / 1000).toISOString() : null;
+
+    return {
+        title: data.title || '',
+        content: htmlContent,
+        textContent: data.textContent || '',
+        tags,
+        created,
+        updated,
+        isArchived: !!data.isArchived,
+        isPinned: !!data.isPinned,
+        isTrashed: !!data.isTrashed,
+        attachments
+    };
 }
 
 // Convert any parseable date string to Evernote's compact UTC format

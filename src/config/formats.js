@@ -86,22 +86,35 @@ export function detectFormat(mainFilename, fileList = []) {
         throw new Error("Gzip (.tgz) archives are not supported. Please use standard .zip files.");
     }
 
-    // 2. Hard Matches
-    if (ext === 'enex') return 'enex';
-    if (ext === 'json' && fileList.length <= 1) return 'json';
-    if (ext === 'md') return 'markdown';
-    if (ext === 'html' || ext === '_keep') return 'keep';
-
-    // 3. Zip Content Scanning
-    if (ext === 'zip') {
-        const hasHtml = fileList.some(f => f.endsWith('.html'));
-        const hasMd = fileList.some(f => f.endsWith('.md'));
-        const hasCsv = fileList.some(f => f.endsWith('.csv'));
-        
-        if (hasMd && hasCsv) return 'notion';
-        if (hasHtml) return 'keep'; // Google Takeout is mostly HTMLs
-        return 'markdown'; // Default zip assumption
+    // 2. Single-file hard matches
+    if (fileList.length <= 1) {
+        if (ext === 'enex') return 'enex';
+        if (ext === 'json') return 'json';
+        if (ext === 'md') return 'markdown';
+        if (ext === 'html' || ext === '_keep') return 'keep';
     }
-    
+
+    // 3. Batch / zip scanning
+    const hasHtml = fileList.some(f => f.endsWith('.html'));
+    const hasJson = fileList.some(f => f.endsWith('.json'));
+    const hasMd = fileList.some(f => f.endsWith('.md'));
+    const hasCsv = fileList.some(f => f.endsWith('.csv'));
+    const hasEnex = fileList.some(f => f.endsWith('.enex'));
+
+    if (hasMd && hasCsv) return 'notion';
+    if (hasEnex) return 'enex';
+
+    // Google Keep Takeout: notes plus a Keep/ folder or the archive_browser.html index.
+    const keepIndicator = fileList.some(f => {
+        const lower = f.toLowerCase();
+        return lower.includes('keep/') || lower.includes('keep\\') || lower.includes('archive_browser.html');
+    });
+    if (keepIndicator) return 'keep';
+
+    // HTML batches default to Keep (most common); JSON-only batches are ambiguous
+    // and must NOT be assumed Keep without a marker.
+    if (hasHtml) return 'keep';
+    if (hasMd) return 'markdown';
+
     return 'unknown';
 }
