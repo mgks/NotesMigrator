@@ -5,6 +5,7 @@ window.Buffer = window.Buffer || Buffer;
 // 2. IMPORTS
 import { OUTPUT_OPTIONS, detectFormat, FORMATS } from './config/formats.js';
 import { parseKeepHtml } from 'gkeep-parser';
+import { escapeHtml, escapeXml, parseKeepJson, normalizeEnexContent, buildTagsXml, keepEntryVisible } from './lib/keep.js';
 import { generateEnex, parseEnex } from 'enex-io';
 import { toMarkdown, fromMarkdown } from 'md-fusion';
 import { saveAs } from 'file-saver';
@@ -605,26 +606,13 @@ async function generateEnexWithResources(notes, binaryMap) {
             }
         }
         
-        // Map checkbox inputs to Evernote <en-todo> items, matching any quote style.
-        content = content.replace(/<input\b[^>]*?\btype\s*=\s*["']?checkbox["']?[^>]*?\bchecked\b[^>]*\/?>/gi, '<en-todo checked="true"/>');
-        content = content.replace(/<input\b[^>]*?\btype\s*=\s*["']?checkbox["']?[^>]*\/?>/gi, '<en-todo/>');
-        content = content.replace(/<br>/g, '<br/>');
-        content = content.replace(/<img[^>]*>/gi, '');
+        // Map checkbox inputs to Evernote <en-todo> items, escaping XML entities.
+        content = normalizeEnexContent(content);
         
-        const title = (note.title || 'Untitled').replace(/[<>&'"]/g, c => {
-            switch(c){case '<':return '&lt;';case '>':return '&gt;';case '&':return '&amp;';case "'":return '&apos;';case '"':return '&quot;';}
-        });
+        const title = escapeXml(note.title || 'Untitled');
 
         // Preserve Keep labels as ENEX <tag> nodes, escaping XML entities.
-        let tagsXml = '';
-        if (Array.isArray(note.tags)) {
-            note.tags.forEach(t => {
-                const cleanTag = (t || '').replace(/[<>&'"]/g, c => {
-                    switch(c){case '<':return '&lt;';case '>':return '&gt;';case '&':return '&amp;';case "'":return '&apos;';case '"':return '&quot;';}
-                });
-                tagsXml += `\n  <tag>${cleanTag}</tag>`;
-            });
-        }
+        const tagsXml = buildTagsXml(note);
         
         const createdTs = toEnexDate(note.created) || ts;
         const updatedTs = toEnexDate(note.updated) || createdTs;
@@ -650,14 +638,6 @@ function isImage(name) {
     return /\.(jpg|jpeg|png|gif|webp)$/i.test(name);
 }
 
-// Escape &, <, > for safe HTML interpolation.
-function escapeHtml(str) {
-    return String(str == null ? '' : str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
-
 // Cache of .json note paths, used to hide duplicate Keep HTML/JSON pairs.
 function recomputeKeepJsonPaths() {
     state.keepJsonPaths = new Set(
@@ -667,77 +647,7 @@ function recomputeKeepJsonPaths() {
 
 // Single source of truth for which entries show and auto-select in the file list.
 function isVisibleEntry(e) {
-    if (e.name.startsWith('.')) return false;
-    if (isImage(e.name)) return true;
-    const fmt = state.detectedFormat;
-    if (fmt === 'keep') {
-        // Skip the Takeout navigation page.
-        if (e.name.toLowerCase() === 'archive_browser.html') return false;
-        if (e.name.endsWith('.json')) return true;
-        if (e.name.endsWith('.html')) {
-            // Prefer the JSON copy when both exist for the same note.
-            const jsonSibling = e.path.slice(0, -5) + '.json';
-            return !state.keepJsonPaths.has(jsonSibling);
-        }
-        return false;
-    }
-    if (fmt === 'markdown' || fmt === 'notion') return e.name.endsWith('.md');
-    if (fmt === 'enex') return e.name.endsWith('.enex');
-    if (fmt === 'json') return e.name.endsWith('.json');
-    return true; // unknown format: show everything
-}
-
-// Parse Google Keep's native JSON export into an internal note object.
-function parseKeepJson(content) {
-    const data = JSON.parse(content);
-    let htmlContent = '';
-
-    if (Array.isArray(data.listContent)) {
-        // Checklist: render items as HTML checkboxes (escaped).
-        htmlContent = '<ul>';
-        data.listContent.forEach(item => {
-            const checkedAttr = item.isChecked ? ' checked="true"' : '';
-            htmlContent += `<li><input type="checkbox"${checkedAttr}/> ${escapeHtml(item.text)}</li>`;
-        });
-        htmlContent += '</ul>';
-    } else if (data.textContent) {
-        // Plain text note: escape HTML, convert newlines to <br/>.
-        htmlContent = escapeHtml(data.textContent).replace(/\n/g, '<br/>');
-    }
-
-    // Map Keep labels -> tags.
-    const tags = [];
-    if (Array.isArray(data.labels)) {
-        data.labels.forEach(l => { if (l.name) tags.push(l.name); });
-    }
-
-    // Map attachments (Keep uses lowercase "filepath" in some export versions).
-    const attachments = [];
-    if (Array.isArray(data.attachments)) {
-        data.attachments.forEach(att => {
-            const filePath = att.filePath || att.filepath || '';
-            if (filePath) {
-                attachments.push({ filePath, mimeType: att.mimetype || 'image/jpeg' });
-            }
-        });
-    }
-
-    // Microsecond timestamps -> ISO strings.
-    const created = data.createdTimestampUsec ? new Date(data.createdTimestampUsec / 1000).toISOString() : null;
-    const updated = data.userEditedTimestampUsec ? new Date(data.userEditedTimestampUsec / 1000).toISOString() : null;
-
-    return {
-        title: data.title || '',
-        content: htmlContent,
-        textContent: data.textContent || '',
-        tags,
-        created,
-        updated,
-        isArchived: !!data.isArchived,
-        isPinned: !!data.isPinned,
-        isTrashed: !!data.isTrashed,
-        attachments
-    };
+    return keepEntryVisible(e, state.detectedFormat, state.keepJsonPaths);
 }
 
 // Convert any parseable date string to Evernote's compact UTC format

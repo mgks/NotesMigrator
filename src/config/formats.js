@@ -80,8 +80,9 @@ export const CONVERSION_PATHS = [
 export function detectFormat(mainFilename, fileList = []) {
     const ext = mainFilename.split('.').pop().toLowerCase();
 
-    // 1. Explicit GZIP Rejection
-    if (ext === 'tgz' || ext === 'tar.gz') {
+    // 1. Explicit GZIP Rejection (check full suffix: .tar.gz otherwise pops to "gz")
+    const lower = mainFilename.toLowerCase();
+    if (lower.endsWith('.tgz') || lower.endsWith('.tar.gz')) {
         // We throw here so the UI can catch and alert
         throw new Error("Gzip (.tgz) archives are not supported. Please use standard .zip files.");
     }
