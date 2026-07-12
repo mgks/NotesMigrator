@@ -41,6 +41,7 @@ self.onmessage = async (e) => {
                         if (isImage) {
                             binaryMap[path] = await entry.async('arraybuffer');
                         } else {
+                            // Decode raw bytes as UTF-8 so emoji, CJK and tag chars survive.
                             const bytes = await entry.async('uint8array');
                             contentMap[path] = new TextDecoder('utf-8').decode(bytes);
                         }
