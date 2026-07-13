@@ -123,6 +123,9 @@ test('normalizeEnexContent: checked single-quote', () => {
 test('normalizeEnexContent: checked bare', () => {
     assert.equal(normalizeEnexContent('<input type=checkbox checked>'), '<en-todo checked="true"/>');
 });
+test('normalizeEnexContent: checked with value "checked" stays checked', () => {
+    assert.equal(normalizeEnexContent('<input type="checkbox" checked="checked">'), '<en-todo checked="true"/>');
+});
 test('normalizeEnexContent: unchecked', () => {
     assert.equal(normalizeEnexContent('<input type="checkbox"/>'), '<en-todo/>');
 });

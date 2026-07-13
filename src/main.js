@@ -485,7 +485,9 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
         const notes = [];
 
         const noteCount = Object.keys(contentMap).length;
-        
+        // Collect parse errors so they can be surfaced in the toast (not just console).
+        const parseErrors = [];
+
         Object.entries(contentMap).forEach(([path, content]) => {
             try {
                 let note = null;
@@ -516,10 +518,16 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
                 }
             } catch (e) {
                 console.warn(`Skipped note at "${path}": ${e.message}`);
+                if (parseErrors.length < 3) parseErrors.push(`${path}: ${e.message}`);
             }
         });
 
-        if (notes.length === 0) throw new Error(`No valid notes could be parsed from ${noteCount} file(s). Check the console for details.`);
+        if (notes.length === 0) {
+            const reason = parseErrors.length
+                ? ` First error: ${parseErrors[0]}`
+                : ` Found ${noteCount} file(s) but none parsed successfully.`;
+            throw new Error(`No valid notes could be parsed.${reason}`);
+        }
 
         let blob = null;
         let fname = `migrator-export-${getTimestamp()}`;

@@ -62,11 +62,11 @@ export function buildTagsXml(note) {
 
 // Normalize note HTML for ENEX: checkboxes -> <en-todo>, <br> -> <br/>, drop <img>.
 // Robust: handles any attribute order / quote style (checked may precede type).
+// HTML boolean semantics: the presence of `checked` means yes, regardless of value.
 export function normalizeEnexContent(content) {
     return content
         .replace(/<input\b[^>]*>/gi, (tag) => {
             if (!/\btype\s*=\s*["']?checkbox["']?/i.test(tag)) return tag;
-            // "checked" anywhere in the tag (Keep emits checked="true").
             return /\bchecked\b/i.test(tag) ? '<en-todo checked="true"/>' : '<en-todo/>';
         })
         .replace(/<br>/g, '<br/>')
