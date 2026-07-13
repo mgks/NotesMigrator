@@ -643,6 +643,9 @@ async function generateEnexWithResources(notes, binaryMap) {
 // --- UTILS ---
 
 function isImage(name) {
+    // Same regex used by lib/keep.js keepEntryVisible; kept inline so the
+    // worker / file-tree code that runs before import resolution can
+    // see it without an explicit dependency.
     return /\.(jpg|jpeg|png|gif|webp)$/i.test(name);
 }
 

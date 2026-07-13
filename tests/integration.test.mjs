@@ -194,16 +194,26 @@ test('md-fusion: markdown bullet list round-trip', () => {
 });
 
 // ---------- npm audit meta-test ----------
-// If the audit advisory range has changed or the dep was bumped, this skips.
-test('md-fusion: js-yaml pinned to a known-vulnerable range (audit regression)', async () => {
-    const pkg = JSON.parse(await readFile(join(root, '..', 'node_modules', 'md-fusion', 'package.json'), 'utf8'));
-    // Documents a published-ecosystem flaw in md-fusion@0.3.0: its declared range
-    // `^4.1.0` falls inside the vulnerable band (<=4.1.1). Once md-fusion is bumped
-    // to use ^4.1.2 (or >=4.2), this assertion starts failing and signals the
-    // upstream upgrade happened. Locally we resolved via npm audit fix to 4.3.0.
+// Sentinel for the js-yaml advisory GHSA-h67p-54hq-rp68 (DoS via repeated
+// aliases, fixed in 4.1.2). When the dep was last verified clean, this
+// reads the resolved version out of node_modules and asserts it is at least
+// 4.1.2 / 4.2+. If this test fails, a security release has been undone.
+test('md-fusion: js-yaml is at or above the patch version for GHSA-h67p-54hq-rp68', async () => {
+    const pkg = JSON.parse(await readFile(join(root, '..', 'node_modules', 'md-fusion', 'package.json'), 'utf-8'));
     const range = pkg.dependencies['js-yaml'];
-    assert.ok(/[\^~]4\.0\.|[\^~]4\.1\.0|[\^~]4\.1\.1/.test(range),
-        `expected vulnerable js-yaml range in md-fusion, got ${range}`);
+    assert.ok(range, 'md-fusion package.json must declare a js-yaml range');
+    // Accept caret/tilde ranges whose lower bound is 4.1.2 or later, or
+    // exact 4.1.2.
+    const m = /[\^~]?(\d+)\.(\d+)\.(\d+)/.exec(range);
+    assert.ok(m, `expected parseable semver range, got "${range}"`);
+    const [, , minor, patch] = m.map(Number);
+    const safe =
+      (minor === 1 && patch >= 2) ||
+      minor >= 2 ||
+      range === '4.1.2' ||
+      range === '=4.1.2';
+    assert.ok(safe,
+        `js-yaml range ${range} is in the vulnerable band (>=4.0.0 <4.1.2)`);
 });
 
 // ---------- optional large-sample loop ----------

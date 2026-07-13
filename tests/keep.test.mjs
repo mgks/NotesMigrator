@@ -105,8 +105,9 @@ test('parseKeepJson empty object -> empty defaults', () => {
     assert.equal(n.content, '');
     assert.deepEqual(n.tags, []);
     assert.deepEqual(n.attachments, []);
-    assert.equal(n.created, null);
-    assert.equal(n.updated, null);
+    // gkeep-parser returns undefined for missing timestamps (no silent "now").
+    assert.equal(n.created, undefined);
+    assert.equal(n.updated, undefined);
 });
 
 test('parseKeepJson malformed JSON throws', () => {

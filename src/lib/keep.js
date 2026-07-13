@@ -1,10 +1,12 @@
-// Pure, DOM-free helpers for Google Keep parsing and ENEX normalization.
+// Pure, DOM-free helpers for Google Keep and ENEX normalization.
 // Extracted from main.js so the conversion logic is unit-testable in Node.
+//
+// Re-export: parseKeepJson now lives in gkeep-parser (since that package
+// gained the API in 0.3.0). We re-export it here to keep `lib/keep.js` as
+// the canonical import surface for tests and any other internal callers,
+// and to preserve the test surface that already passed.
 
-// True for supported image extensions.
-function isImageName(name) {
-    return /\.(jpg|jpeg|png|gif|webp)$/i.test(name);
-}
+export { parseKeepJson } from 'gkeep-parser';
 
 // Escape &, <, > for safe HTML interpolation.
 export function escapeHtml(str) {
@@ -31,7 +33,10 @@ export function escapeXml(str) {
 // Pure: takes the per-request context instead of reading global state.
 export function keepEntryVisible(e, detectedFormat, keepJsonPaths) {
     if (e.name.startsWith('.')) return false;
-    if (isImageName(e.name)) return true;
+    // Image heuristic matches gkeep-parser' isKeepImage extensions
+    // (jpg/jpeg/png/gif/webp). Inlined here so this module stays
+    // DOM-free.
+    if (/\.(jpg|jpeg|png|gif|webp)$/i.test(e.name)) return true;
     if (detectedFormat === 'keep') {
         // Skip the Takeout navigation page.
         if (e.name.toLowerCase() === 'archive_browser.html') return false;
@@ -71,57 +76,4 @@ export function normalizeEnexContent(content) {
         })
         .replace(/<br>/g, '<br/>')
         .replace(/<img[^>]*>/gi, '');
-}
-
-// Parse Google Keep's native JSON export into an internal note object.
-export function parseKeepJson(content) {
-    const data = JSON.parse(content);
-    let htmlContent = '';
-
-    if (Array.isArray(data.listContent)) {
-        // Checklist: render items as HTML checkboxes (escaped).
-        htmlContent = '<ul>';
-        data.listContent.forEach(item => {
-            const checkedAttr = item.isChecked ? ' checked="true"' : '';
-            htmlContent += `<li><input type="checkbox"${checkedAttr}/> ${escapeHtml(item.text)}</li>`;
-        });
-        htmlContent += '</ul>';
-    } else if (data.textContent) {
-        // Plain text note: escape HTML, convert newlines to <br/>.
-        htmlContent = escapeHtml(data.textContent).replace(/\n/g, '<br/>');
-    }
-
-    // Map Keep labels -> tags.
-    const tags = [];
-    if (Array.isArray(data.labels)) {
-        data.labels.forEach(l => { if (l.name) tags.push(l.name); });
-    }
-
-    // Map attachments (Keep uses lowercase "filepath" in some export versions).
-    const attachments = [];
-    if (Array.isArray(data.attachments)) {
-        data.attachments.forEach(att => {
-            const filePath = att.filePath || att.filepath || '';
-            if (filePath) {
-                attachments.push({ filePath, mimeType: att.mimetype || 'image/jpeg' });
-            }
-        });
-    }
-
-    // Microsecond timestamps -> ISO strings.
-    const created = data.createdTimestampUsec ? new Date(data.createdTimestampUsec / 1000).toISOString() : null;
-    const updated = data.userEditedTimestampUsec ? new Date(data.userEditedTimestampUsec / 1000).toISOString() : null;
-
-    return {
-        title: data.title || '',
-        content: htmlContent,
-        textContent: data.textContent || '',
-        tags,
-        created,
-        updated,
-        isArchived: !!data.isArchived,
-        isPinned: !!data.isPinned,
-        isTrashed: !!data.isTrashed,
-        attachments
-    };
 }
