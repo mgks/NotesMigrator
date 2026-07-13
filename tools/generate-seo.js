@@ -39,10 +39,22 @@ WIKI_PAGES.forEach(page => {
         .replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${page.desc}">`)
         .replace('</head>', `<link rel="canonical" href="${url}"></head>`)
         .replace('<body>', '<body class="wiki-page">')
-        // Preserve any attributes (e.g. id="appStage") on the existing <main>
-        // element. The previous capture group skipped attributes entirely,
-        // which made the SPA module (that mounts into #appStage) throw
-        // on startup, leaving the wiki page empty.
+        // Strip the SPA module script. The wiki page is static SEO
+        // content; booting the app on it would overwrite the wiki body
+        // by mounting the SPA into <main id="appStage">. The CSS link
+        // below stays so styling still applies.
+        .replace(/<script\s+type="module"[^>]*src="\/assets\/index-[^"]+\.js"[^>]*><\/script>/gi, '')
+        // Strip the Vite-PWA SW registration: not relevant to a static
+        // page and would otherwise install a service worker that could
+        // cache stale HTML against the wiki URLs on later visits.
+        .replace(/<script\s+id="vite-plugin-pwa:register-sw"[^>]*><\/script>/gi, '')
+        .replace(/<link[^>]*rel="manifest"[^>]*>/gi, '')
+        // Drop the theme toggle button from the wiki chrome — it needs
+        // the SPA module to actually do anything, and stripping the SPA
+        // module above would leave it inert. Replacing the whole header
+        // actions row with a minimal "Back to App" + canonical link keeps
+        // wiki pages navigable.
+        .replace(/<div class="actions">[\s\S]*?<\/div>\s*<\/header>/i, '</header>')
         .replace(/<main\b([^>]*)>[\s\S]*?<\/main>/i, `<main$1>${wikiBody}</main>`);
 
     fs.writeFileSync(path.join(outputDir, 'index.html'), html);
