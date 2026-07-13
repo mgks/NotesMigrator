@@ -39,7 +39,11 @@ WIKI_PAGES.forEach(page => {
         .replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${page.desc}">`)
         .replace('</head>', `<link rel="canonical" href="${url}"></head>`)
         .replace('<body>', '<body class="wiki-page">')
-        .replace(/<main.*?>[\s\S]*?<\/main>/i, `<main>${wikiBody}</main>`);
+        // Preserve any attributes (e.g. id="appStage") on the existing <main>
+        // element. The previous capture group skipped attributes entirely,
+        // which made the SPA module (that mounts into #appStage) throw
+        // on startup, leaving the wiki page empty.
+        .replace(/<main\b([^>]*)>[\s\S]*?<\/main>/i, `<main$1>${wikiBody}</main>`);
 
     fs.writeFileSync(path.join(outputDir, 'index.html'), html);
     sitemapUrls.push(url);
