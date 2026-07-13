@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(root, 'fixtures');
 
-import { parseKeepHtml } from 'gkeep-parser';
+import { parseKeepHtml, parseKeepJson, isKeepImage } from 'gkeep-parser';
 import { parseEnex, generateEnex } from 'enex-io';
 import { toMarkdown, fromMarkdown } from 'md-fusion';
 
@@ -20,10 +20,9 @@ test('gkeep-parser: parses a typical Keep HTML note', () => {
 <body>
 <div class="title">Shopping</div>
 <div class="heading"><span class="date">Jan 15, 2026</span></div>
-<div class="content"><ul><li>Milk</li><li>Bread</li></ul></div>
+<div class="content"><ul><li>Milk</li><li>Bread</li></ul><img src="photo.png" /></div>
 <span class="label">errands</span>
 <span class="label">home</span>
-<img src="photo.png" />
 </body></html>`;
     const n = parseKeepHtml(html);
     assert.equal(n.title, 'Shopping');
@@ -31,12 +30,59 @@ test('gkeep-parser: parses a typical Keep HTML note', () => {
     assert.equal(n.attachments.length, 1);
 });
 
-test('gkeep-parser FLAW: hard-codes mimeType "image/jpeg" even for PNG', () => {
-    const html = `<html><body><img src="photo.png" /></body></html>`;
+test('gkeep-parser: mimeType is sniffed from the file extension', () => {
+  const cases = [
+    ['photo.png', 'image/png'],
+    ['photo.jpeg', 'image/jpeg'],
+    ['photo.JPEG', 'image/jpeg'],
+    ['animated.gif', 'image/gif'],
+    ['modern.webp', 'image/webp'],
+    ['.photo.svg', 'image/svg+xml'],
+    ['unknown.bmp', 'image/bmp'],
+    ['no-extension', 'image/jpeg'],   // default when we cannot tell
+    ['archive.zip', 'image/jpeg']     // zip is not an image; we fall back to jpeg
+  ];
+  for (const [path, expected] of cases) {
+    const html = `<html><body><div class="content"><img src="${path}"></div></body></html>`;
     const n = parseKeepHtml(html);
-    // The flaw: this should be image/png.
-    assert.equal(n.attachments[0].mimeType, 'image/jpeg',
-        'documented flaw: gkeep-parser hard-codes image/jpeg');
+    assert.equal(n.attachments[0].mimeType, expected,
+      `expected ${expected} for ${path}, got ${n.attachments[0].mimeType}`);
+  }
+});
+
+test('gkeep-parser: leaves images outside .content alone (no Keep UI logo leak)', () => {
+  const html = `<html><body>
+    <img src="keep-logo.png" alt="logo">
+    <div class="content"><img src="inside.jpg"></div>
+  </body></html>`;
+  const n = parseKeepHtml(html);
+  assert.equal(n.attachments.length, 1);
+  assert.equal(n.attachments[0].filePath, 'inside.jpg');
+});
+
+test('gkeep-parser: populates the colour swatch when Keep includes one', () => {
+  const html = `<html><body>
+    <div class="title">T</div>
+    <div class="content">x</div>
+    <div class="color-container" style="background-color: #fff8dc"></div>
+  </body></html>`;
+  const n = parseKeepHtml(html);
+  assert.equal(n.color, '#fff8dc');
+});
+
+test('gkeep-parser: new parseKeepJson API shipped (was previously reimplemented by callers)', () => {
+  const js = JSON.stringify({
+    title: 'From JSON',
+    listContent: [{ text: 'a', isChecked: true }],
+    labels: [{ name: 'l' }],
+    createdTimestampUsec: 1609459200000000,
+    attachments: [{ filePath: 'a.png' }]
+  });
+  const n = parseKeepJson(js);
+  assert.equal(n.title, 'From JSON');
+  assert.deepEqual(n.tags, ['l']);
+  assert.equal(n.created, '2021-01-01T00:00:00.000Z');
+  assert.equal(n.attachments[0].mimeType, 'image/png');
 });
 
 test('gkeep-parser: parses a title-less note as "Untitled"', () => {
@@ -61,9 +107,7 @@ test('enex-io: round-trips a generated note through parseEnex', () => {
     assert.match(notes[0].content, /line2/);
 });
 
-test('enex-io FLAW: silently rewrites invalid dates to "now" instead of erroring', () => {
-    // Generated with completely invalid dates; enex-io should not silently
-    // substitute "today" but it does.
+test('enex-io: invalid dates come through as null instead of a silent "now" lie', () => {
     const out = generateEnex([{
         title: 'Bad date',
         content: 'x',
@@ -72,23 +116,65 @@ test('enex-io FLAW: silently rewrites invalid dates to "now" instead of erroring
         tags: []
     }]);
     const notes = parseEnex(out);
-    // After the round-trip, the bad date input has been replaced with today's
-    // ISO timestamp. That's the flaw: silent, lossless-looking fallback.
-    const now = Date.now();
-    const ts = Date.parse(notes[0].created);
-    assert.ok(Math.abs(now - ts) < 60_000,
-        `expected enex-io to silently rewrite to ~now, got ${notes[0].created}`);
-    assert.notEqual(notes[0].created, 'NOT-A-DATE');
+    assert.equal(notes[0].created, null);
+    assert.equal(notes[0].updated, null);
 });
 
-test('enex-io FLAW: parseEnex omits textContent / isArchived / isPinned / isTrashed / attachments', () => {
-    // The schema gap means downstream code can not treat gkeep-parser output
-    // and enex-io output interchangeably.
-    const out = generateEnex([{ title: 'T', content: 'c', created: '20260101T000000Z', updated: '20260101T000000Z', tags: [] }]);
+test('enex-io: HTML normalisation converts <input type="checkbox"> into <en-todo>', () => {
+    const out = generateEnex([{
+        title: 'T',
+        content: '<input type="checkbox" checked/> done <input type="checkbox"/> open',
+        created: '20260101T000000Z',
+        updated: '20260101T000000Z',
+        tags: []
+    }]);
     const notes = parseEnex(out);
-    assert.ok(!('textContent' in notes[0]), 'documented schema gap');
-    assert.ok(!('isArchived' in notes[0]),  'documented schema gap');
-    assert.ok(!('attachments' in notes[0]), 'documented schema gap');
+    assert.match(notes[0].content, /<en-todo checked="true"\/>/);
+    assert.match(notes[0].content, /<en-todo\/>/);
+    assert.doesNotMatch(notes[0].content, /<input/);
+});
+
+test('enex-io: round-trip preserves an attachment with matching MD5 hash', () => {
+    // A 1x1 transparent PNG. MD5 of the decoded bytes, used here directly.
+    const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    const expectedHash = '91e42db1c66c0b276abf6234dc50b2eb';
+    const out = generateEnex([{
+        title: 'With attachment',
+        content: '<div>photo</div>',
+        created: '20260101T000000Z',
+        updated: '20260101T000000Z',
+        tags: [],
+        attachments: [{
+            data: pngB64,
+            mime: 'image/png',
+            fileName: 'pixel.png',
+            hash: expectedHash
+        }]
+    }]);
+    const notes = parseEnex(out);
+    assert.ok(Array.isArray(notes[0].attachments));
+    assert.equal(notes[0].attachments.length, 1);
+    assert.equal(notes[0].attachments[0].data, pngB64);
+    assert.equal(notes[0].attachments[0].mime, 'image/png');
+    assert.equal(notes[0].attachments[0].fileName, 'pixel.png');
+    assert.equal(notes[0].attachments[0].hash, expectedHash);
+    // The generator also dropped an <en-media hash="..."> marker into the body.
+    assert.match(out, new RegExp(`<en-media type="image/png" hash="${expectedHash}"`));
+});
+
+test('enex-io: round-trip preserves <note-attributes> author and sourceUrl', () => {
+    const out = generateEnex([{
+        title: 'Attr',
+        content: '<p>x</p>',
+        created: '20260101T000000Z',
+        updated: '20260101T000000Z',
+        tags: [],
+        author: 'Ghazi',
+        sourceUrl: 'https://keep.google.com/#NOTE/abc'
+    }]);
+    const notes = parseEnex(out);
+    assert.equal(notes[0].author, 'Ghazi');
+    assert.equal(notes[0].sourceUrl, 'https://keep.google.com/#NOTE/abc');
 });
 
 // ---------- md-fusion integration ----------

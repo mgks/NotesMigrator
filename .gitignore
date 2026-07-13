@@ -3,4 +3,4 @@ dist
 .DS_Store
 .vscode
 .env
-_old
+_oldtests/tmp/
