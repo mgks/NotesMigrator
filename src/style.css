@@ -533,6 +533,34 @@ body.wiki-page #appStage {
 }
 .wiki-container a:hover { border-bottom-color: var(--primary); }
 
+/* Conversion matrix table on the /wiki/guide/ page. Plain CSS so the
+   static page can render the table without the SPA module being
+   loaded — matches the styling of the rest of the wiki body. */
+.wiki-container table.matrix {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 32px;
+    font-size: 0.95em;
+}
+.wiki-container table.matrix th,
+.wiki-container table.matrix td {
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    text-align: center;
+}
+.wiki-container table.matrix th {
+    background: var(--surface-2, rgba(0, 0, 0, 0.03));
+    font-weight: 600;
+}
+.wiki-container table.matrix td:first-child,
+.wiki-container table.matrix th:first-child {
+    text-align: left;
+    font-weight: 500;
+}
+.wiki-container table.matrix tr:nth-child(even) td {
+    background: var(--surface-2, rgba(0, 0, 0, 0.02));
+}
+
 /* --- FIX: BACK BUTTON --- */
 .wiki-actions {
     margin-top: 60px;

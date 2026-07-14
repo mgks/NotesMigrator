@@ -19,7 +19,7 @@ export const WIKI_PAGES = [
                 <h1>Privacy Policy</h1>
                 <p class="intro">TL;DR: We cannot see your data.</p>
             </div>
-            
+
             <section>
                 <h3>1. Client-Side Processing</h3>
                 <p>Migrator is designed as a "Local-First" application. All file parsing, conversion, and zip generation happens inside your web browser using JavaScript and Web Workers.</p>
@@ -34,7 +34,7 @@ export const WIKI_PAGES = [
                 <h3>3. Analytics</h3>
                 <p>We use Google Analytics to track <em>generic usage patterns</em> (e.g., "User converted Keep to Notion"). We explicitly disable data sharing and do not track any content within your notes.</p>
             </section>
-            
+
             ${WIKI_NAV}
         `
     },
@@ -49,12 +49,53 @@ export const WIKI_PAGES = [
             </div>
 
             <section>
+                <h3>Conversion Matrix</h3>
+                <p>Every source × target the app supports, in one place:</p>
+                <table class="matrix">
+                    <thead>
+                        <tr>
+                            <th>From &darr; / To &rarr;</th>
+                            <th>ENEX (Apple Notes / Evernote)</th>
+                            <th>Markdown (Obsidian / Notion)</th>
+                            <th>JSON</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Google Keep</strong> (JSON / HTML)</td>
+                            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Notion</strong> (Markdown + CSV)</td>
+                            <td>&#10003;</td><td>&#10003;</td><td>&mdash;</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Evernote</strong> (.enex)</td>
+                            <td>&mdash;</td><td>&#10003;</td><td>&#10003;</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Markdown / Obsidian</strong></td>
+                            <td>&#10003;</td><td>&mdash;</td><td>&mdash;</td>
+                        </tr>
+                        <tr>
+                            <td><strong>JSON</strong> (raw)</td>
+                            <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
+                        </tr>
+                        <tr>
+                            <td><strong>PDF</strong> (.pdf)</td>
+                            <td>&#10003;</td><td>&#10003;</td><td>&#10003;</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
                 <h3>Google Keep</h3>
                 <ol>
                     <li>Go to <a href="https://takeout.google.com" target="_blank">Google Takeout</a>.</li>
                     <li>Click "Deselect all".</li>
                     <li>Scroll down and check <strong>Keep</strong>.</li>
-                    <li>Click "Next step" > "Create export".</li>
+                    <li>Click "Next step" &rarr; "Create export".</li>
                     <li>Download the <strong>.zip</strong> file.</li>
                 </ol>
             </section>
@@ -63,9 +104,9 @@ export const WIKI_PAGES = [
                 <h3>Notion</h3>
                 <ol>
                     <li>Open your Notion Workspace.</li>
-                    <li>Go to <strong>Settings & Members</strong> > <strong>Settings</strong>.</li>
-                    <li>Scroll to "Export content" -> "Export all workspace content".</li>
-                    <li>Select format: <strong>Markdown & CSV</strong>.</li>
+                    <li>Go to <strong>Settings &amp; Members</strong> &rarr; <strong>Settings</strong>.</li>
+                    <li>Scroll to "Export content" &rarr; "Export all workspace content".</li>
+                    <li>Select format: <strong>Markdown &amp; CSV</strong>.</li>
                 </ol>
             </section>
 
@@ -84,7 +125,7 @@ export const WIKI_PAGES = [
                 <ol>
                     <li>Convert your files to <strong>Evernote (.enex)</strong> using this tool.</li>
                     <li>Open Apple Notes on Mac.</li>
-                    <li>File > <strong>Import to Notes...</strong></li>
+                    <li>File &rarr; <strong>Import to Notes...</strong></li>
                     <li>Select the .enex file.</li>
                 </ol>
             </section>
