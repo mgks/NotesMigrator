@@ -626,14 +626,35 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
             fname += '.json';
             saveAs(blob, fname);
             finishSuccess();
-        } 
+        }
         else if (target === 'enex') {
             const enexContent = await generateEnexWithResources(notes, binaryMap);
             blob = new Blob([enexContent], { type: 'application/xml' });
             fname += '.enex';
             saveAs(blob, fname);
             finishSuccess();
-        } 
+        }
+        else if (target === 'pdf') {
+            // Render notes to a printable HTML document and open a new
+            // tab with the browser's print dialog open. The user picks
+            // "Save as PDF" in the destination dropdown. Perfect
+            // fidelity (every HTML element the app supports renders) and
+            // zero new dependencies.
+            const { notesToPrintableHTML, openPrintWindow } = await import('./lib/pdf-render.js');
+            const html = notesToPrintableHTML(notes, { title: 'NotesMigrator export' });
+            const win = openPrintWindow(html);
+            if (!win) {
+                // Popup blocked — fall back to offering a Blob download
+                // so the user still has the HTML.
+                blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+                fname += '.html';
+                saveAs(blob, fname);
+                showToast('Popup blocked — downloaded HTML instead. Open it and use Print → Save as PDF.', 6000);
+            } else {
+                showToast('Choose "Save as PDF" in the print dialog to export.', 4500);
+            }
+            finishSuccess();
+        }
         else if (target === 'markdown') {
             const filesToZip = [];
             const binaryFiles = [];
