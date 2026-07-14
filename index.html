@@ -85,6 +85,11 @@
             </a>
         </div>
         <div class="actions">
+            <!-- Reset (visible only when files are loaded) -->
+            <button id="resetBtn" class="icon-btn btn-reset" title="Clear all files" aria-label="Reset" hidden>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+            </button>
+
             <!-- Help Circle -->
                 <a href="/wiki/guide/" target="_blank" rel="noopener" class="icon-btn" title="Guide" aria-label="Guide">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
@@ -126,8 +131,8 @@
                     <svg width="100" height="100" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke-width="0"/><g stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8v8m3-5-2.913-2.913v0a.123.123 0 0 0-.174 0v0L9 11m-6 4v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4" stroke="#e08200" stroke-width=".84" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
                 <h1>Import your Notes</h1>
-                <h3>Migrate notes between Google Keep, Apple Notes, Evernote, Notion, and more. 100% private.</h3>
-                <p>Drag & drop <b>folders</b>, <b>.zip</b>, <b>.enex</b>, or <b>.md</b> files here.</p>
+                <h3>Migrate notes between Google Keep, Apple Notes, Evernote, Notion, Markdown, and PDF. 100% private.</h3>
+                <p>Drag &amp; drop <b>folders</b>, <b>.zip</b>, <b>.enex</b>, <b>.md</b>, or <b>.pdf</b> files here.</p>
                 <div style="display:flex; justify-content:center; gap:10px;">
                     <button id="browseBtn" class="btn secondary">Browse Files</button>
                     <button id="browseFolderBtn" class="btn secondary">Browse Folder</button>

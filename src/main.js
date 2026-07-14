@@ -62,12 +62,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function cacheAppElements() {
     const ids = [
-        'dropTrigger', 'fileInput', 'folderInput', 'fileList', 'dock', 'formatSelect', 
-        'countDisplay', 'selectAll', 'convertBtn', 'scanStatus', 
-        'browseBtn', 'browseFolderBtn', 'addMoreBtn', 'addFolderBtn', 'dragOverlay', 'toast'
+        'dropTrigger', 'fileInput', 'folderInput', 'fileList', 'dock', 'formatSelect',
+        'countDisplay', 'selectAll', 'convertBtn', 'scanStatus',
+        'browseBtn', 'browseFolderBtn', 'addMoreBtn', 'addFolderBtn', 'dragOverlay', 'toast',
+        'resetBtn'
     ];
     ids.forEach(id => els[id] = document.getElementById(id));
-    
+
     els.views = {
         upload: document.getElementById('uploadView'),
         scan: document.getElementById('scanView'),
@@ -122,7 +123,8 @@ function setupUI() {
     if(els.browseFolderBtn) els.browseFolderBtn.addEventListener('click', () => els.folderInput.click());
     if(els.addMoreBtn) els.addMoreBtn.addEventListener('click', () => els.fileInput.click());
     if(els.addFolderBtn) els.addFolderBtn.addEventListener('click', () => els.folderInput.click());
-    
+    if(els.resetBtn) els.resetBtn.addEventListener('click', resetState);
+
     els.fileInput.addEventListener('change', e => {
         if(e.target.files.length > 0) handleNewFiles(e.target.files);
         els.fileInput.value = ''; // Reset for re-selection
@@ -340,9 +342,10 @@ function finalizeBatch(sourceIndex, entries) {
             state.selectedIds.add(`${sourceIndex}:${e.path}`);
         }
     });
-    
+
     renderList();
     switchView('list');
+    updateResetVisibility();
 }
 
 // --- RENDER LIST ---
@@ -819,4 +822,36 @@ function resetBtn() {
 function switchView(id) {
     Object.values(els.views).forEach(el => el.classList.remove('active'));
     els.views[id].classList.add('active');
+}
+
+// Show the reset icon only when the user has uploaded at least one file.
+// The button is hidden by default via the `hidden` attribute on the
+// <button id="resetBtn"> in index.html, and toggled here as state
+// changes. Keeps the first-landing dropzone clean of "Clear" chrome
+// the user has nothing to clear yet.
+function updateResetVisibility() {
+    if (!els.resetBtn) return;
+    const hasContent = state.sources.length > 0 || state.parsedPdfNotes.length > 0;
+    if (hasContent) els.resetBtn.removeAttribute('hidden');
+    else els.resetBtn.setAttribute('hidden', '');
+}
+
+// Clear all loaded state and return to the upload dropzone. Used by the
+// reset icon in the top bar.
+function resetState() {
+    state.sources = [];
+    state.allEntries = [];
+    state.selectedIds = new Set();
+    state.parsedPdfNotes = [];
+    state.detectedFormat = null;
+    state.keepJsonPaths = new Set();
+    // Also clear the file input value so re-selecting the same files
+    // fires the change handler again. (Webkit quirk: same FileList is
+    // dropped if the user picks the same files twice in a row.)
+    if (els.fileInput) els.fileInput.value = '';
+    if (els.folderInput) els.folderInput.value = '';
+    updateResetVisibility();
+    if (els.fileList) els.fileList.innerHTML = '';
+    if (els.countDisplay) els.countDisplay.textContent = '0';
+    switchView('upload');
 }
