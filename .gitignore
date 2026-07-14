@@ -5,3 +5,4 @@ dist
 .env
 _oldtests/tmp/
 tests/tmp/
+test/tmp/

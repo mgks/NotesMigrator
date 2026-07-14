@@ -21,6 +21,7 @@ const ICONS = {
     html: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e34f26" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`,
     json: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#555555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`,
     image: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>`,
+    pdf: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M8 13h8M8 17h5"></path></svg>`,
     default: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>`
 };
 
@@ -32,7 +33,8 @@ const state = {
     worker: new Worker(new URL('./modules/worker.js', import.meta.url), { type: 'module' }),
     isProcessing: false,
     detectedFormat: null,
-    keepJsonPaths: new Set() // .json note paths, used to dedupe Keep HTML/JSON pairs
+    keepJsonPaths: new Set(), // .json note paths, used to dedupe Keep HTML/JSON pairs
+    parsedPdfNotes: []   // notes already extracted when source === 'pdf'
 };
 
 // --- DOM ELEMENTS ---
@@ -201,6 +203,51 @@ async function handleDrop(e) {
     }
 }
 
+// Parse a batch of PDF files in the main thread and register the
+// resulting notes with the existing pipeline. The heavy pdf.js bundle
+// is loaded on-demand by src/lib/pdf.js, so the main bundle stays slim.
+async function importPdfFiles(pdfs) {
+    if (!Array.isArray(pdfs) || pdfs.length === 0) return;
+    const { parsePdfFile } = await import('./lib/pdf.js');
+    state.parsedPdfNotes = [];
+    const seen = new Set();
+    let totalSkipped = 0;
+    for (const file of pdfs) {
+        try {
+            const notes = await parsePdfFile(file);
+            for (const note of notes) {
+                let title = (note.title || file.name || 'PDF note').trim() || 'PDF note';
+                let suffix = 2;
+                const base = title;
+                while (seen.has(title)) title = `${base} (${suffix++})`;
+                seen.add(title);
+                state.parsedPdfNotes.push({ ...note, title });
+            }
+        } catch (err) {
+            totalSkipped++;
+            console.warn(`Skipped ${file.name}: ${err.message}`);
+        }
+    }
+
+    if (state.parsedPdfNotes.length === 0) {
+        showToast('No text could be extracted from the PDF(s).', 5000, 'error');
+        return;
+    }
+
+    state.sources.push({ type: 'pdf', files: pdfs, entries: [] });
+    const sourceIndex = state.sources.length - 1;
+    const entries = state.parsedPdfNotes.map((n, i) => ({
+        path: `${pdfs[0].name}#${i + 1}`,
+        name: n.title,
+        size: pdfs[0].size || 0
+    }));
+    finalizeBatch(sourceIndex, entries);
+    // Auto-select all notes for the user — they can deselect before converting.
+    state.selectedIds = new Set(entries.map(e => `${sourceIndex}:${e.path}`));
+    if (totalSkipped > 0) showToast(`Imported ${state.parsedPdfNotes.length} PDF note(s); ${totalSkipped} file(s) skipped.`, 5000, 'warning');
+    else showToast(`Imported ${state.parsedPdfNotes.length} PDF note(s).`);
+}
+
 function handleNewFiles(fileList) {
     const files = Array.from(fileList);
     
@@ -216,7 +263,7 @@ function handleNewFiles(fileList) {
     const raw = files.filter(f => !f.name.endsWith('.zip') && !f.name.startsWith('.'));
 
     // Pre-validate Raw Files
-    const allowedExts = ['.html', '.json', '.enex', '.md', '.png', '.jpg', '.jpeg', '.gif', '.webp'];
+    const allowedExts = ['.html', '.json', '.enex', '.md', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp'];
     const validRaw = raw.filter(f => {
         const ext = '.' + f.name.split('.').pop().toLowerCase();
         return allowedExts.includes(ext);
@@ -236,6 +283,18 @@ function handleNewFiles(fileList) {
 
     // Show toast for skipped files if any, but continue processing valid ones
     if (skippedCount > 0) showToast(`${skippedCount} unsupported file(s) skipped.`);
+
+    // PDF-only batch: parse on the main thread (PDF.js runs lazily
+    // inside src/lib/pdf.js and pulls in a worker of its own). Bypasses
+    // the JSZip worker used for Keep/Notion/Evernote.
+    const pdfBatch = validRaw.filter(f => f.name.toLowerCase().endsWith('.pdf'));
+    if (zips.length === 0 && pdfBatch.length === validRaw.length && pdfBatch.length > 0) {
+        importPdfFiles(pdfBatch).catch(e => {
+            console.error('PDF import failed:', e);
+            showToast('PDF import failed: ' + e.message, 5000, 'error');
+        });
+        return;
+    }
 
     // 1. Process ZIPs
     zips.forEach(zip => {
@@ -390,6 +449,14 @@ async function startConversion() {
     els.convertBtn.disabled = true;
 
     try {
+        // PDF batch: notes were already extracted at file-upload time
+        // (see importPdfFiles). The output pipeline consumes them via
+        // finishConversion, no per-file extraction needed.
+        if (state.detectedFormat === 'pdf') {
+            finishConversion({}, {}, {});
+            return;
+        }
+
         const combinedContentMap = {};
         const combinedBinaryMap = {};
         const combinedDateMap = {};
@@ -488,7 +555,28 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
         // Collect parse errors so they can be surfaced in the toast (not just console).
         const parseErrors = [];
 
-        Object.entries(contentMap).forEach(([path, content]) => {
+        // PDF path: notes were extracted at upload time. We need to
+        // populate notes[] with state.parsedPdfNotes (filtered by the
+        // user's current selection) so the downstream output path is
+        // identical to other formats.
+        if (source === 'pdf') {
+            const pdfNotes = state.parsedPdfNotes || [];
+            const selectedPaths = new Set();
+            for (const id of state.selectedIds) {
+                const idx = id.indexOf(':');
+                if (idx < 0) continue;
+                selectedPaths.add(id.substring(idx + 1));
+            }
+            for (let i = 0; i < pdfNotes.length; i++) {
+                const tag = `${state.sources.length - 1}:${i + 1}`;  // not used; matched by path
+                if (selectedPaths.size > 0 && !selectedPaths.has(`${i + 1}`)) continue;
+                notes.push({ ...pdfNotes[i] });
+            }
+            if (notes.length === 0) {
+                throw new Error('No PDF notes selected. Pick at least one to convert.');
+            }
+        } else {
+            Object.entries(contentMap).forEach(([path, content]) => {
             try {
                 let note = null;
                 if (source === 'keep') {
@@ -521,6 +609,7 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
                 if (parseErrors.length < 3) parseErrors.push(`${path}: ${e.message}`);
             }
         });
+        }
 
         if (notes.length === 0) {
             const reason = parseErrors.length

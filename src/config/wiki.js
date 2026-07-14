@@ -41,13 +41,13 @@ export const WIKI_PAGES = [
     {
         slug: 'guide',
         title: 'Export & Import Guide',
-        desc: 'Step-by-step instructions for exporting notes from Google Keep, Notion, and Evernote.',
+        desc: 'Step-by-step instructions for exporting notes from Google Keep, Notion, Evernote, and PDF.',
         content: `
             <div class="wiki-header">
                 <h1>Migration Guide</h1>
                 <p class="intro">How to get your data out of closed gardens.</p>
             </div>
-            
+
             <section>
                 <h3>Google Keep</h3>
                 <ol>
@@ -70,6 +70,16 @@ export const WIKI_PAGES = [
             </section>
 
             <section>
+                <h3>PDF Notes</h3>
+                <ol>
+                    <li>No export step needed — just drop your <strong>.pdf</strong> files into the upload area.</li>
+                    <li>One note per file. Multi-page PDFs become a single note with one <code>&lt;h2&gt;Page N&lt;/h2&gt;</code> per page.</li>
+                    <li>Text extraction runs entirely in your browser. PDFs stay on your device — no server upload.</li>
+                    <li>For best results, use text-based PDFs. Scanned (image-only) PDFs need OCR first; try an external tool like OCRmyPDF, then re-import.</li>
+                </ol>
+            </section>
+
+            <section>
                 <h3>Apple Notes (Importing)</h3>
                 <ol>
                     <li>Convert your files to <strong>Evernote (.enex)</strong> using this tool.</li>
@@ -78,7 +88,7 @@ export const WIKI_PAGES = [
                     <li>Select the .enex file.</li>
                 </ol>
             </section>
-            
+
             ${WIKI_NAV}
         `
     }

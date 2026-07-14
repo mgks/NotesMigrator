@@ -29,13 +29,13 @@
 
 </div>
 
-A free, secure, browser-based tool to migrate your notes between popular services like **Google Keep**, **Apple Notes**, **Evernote**, and **Notion**. All processing happens entirely in your browser, ensuring your notes remain private.
+A free, secure, browser-based tool to migrate your notes between popular services like **Google Keep**, **Apple Notes**, **Evernote**, and **Notion**. Also extracts text from **PDF** notes and converts them to the format of your choice. All processing happens entirely in your browser, ensuring your notes remain private.
 
 ## Features
 
 *   **Privacy First:** Runs **entirely in your browser**. Your notes are never uploaded to any server.
 *   **Multi-Format Conversion:**
-    *   **From:** Google Keep (`.html`, `._keep`), Evernote (`.enex`), Markdown (Notion / Obsidian exports).
+    *   **From:** Google Keep (`.html`, `._keep`), Evernote (`.enex`), Markdown (Notion / Obsidian exports), PDF (`.pdf`).
     *   **To:** Apple Notes (`.enex`), Evernote (`.enex`), Markdown (Obsidian / Notion compatible), JSON.
 *   **Accurate Timestamps:** Creation and modification dates are preserved with a two-tier strategy — the note's own embedded date is used when available, falling back to the ZIP entry or file last-modified date. Notes will never falsely show today's date.
 *   **Easy to Use:** A simple, modern interface with drag-and-drop, folder browsing, and automatic format detection.
@@ -52,6 +52,7 @@ A free, secure, browser-based tool to migrate your notes between popular service
     *   Tags and labels.
     *   Embedded and referenced images from exports.
 *   **Apple Notes Image Support:** Images embedded in Google Keep exports are MD5-hashed and base64-encoded as `<resource>` tags in the ENEX output for seamless import into Apple Notes.
+*   **PDF Text Extraction:** Drop a `.pdf` and NotesMigrator pulls the text out (one section per page) and hands it back to the same ENEX / Markdown / JSON pipeline. PDF support is loaded on demand, so users who only deal with Keep / Evernote don't pay the bandwidth.
 *   **No Installation Required:** Works directly in modern web browsers (Chrome, Firefox, Safari, Edge).
 *   **Dark / Light Mode:** Respects your system theme with a manual override toggle.
 
@@ -66,7 +67,8 @@ A free, secure, browser-based tool to migrate your notes between popular service
 ### Step 2: Export Your Notes
 
 *   **Google Keep:** Go to [Google Takeout](https://takeout.google.com/), deselect all, pick **Keep**, export, and download the `.zip`.
-*   **Notion:** Settings → Export all workspace content → **Markdown & CSV** → Download `.zip`.
+*   **Notion:** Settings → Export all workspace 
+*   **PDF notes:** Just drop the `.pdf` files directly. Multi-page PDFs become one note with `<h2>Page N</h2>` per page; multi-file drops become multiple notes.content → **Markdown & CSV** → Download `.zip`.
 *   **Evernote:** File → Export Notes → `.enex`.
 
 ### Step 3: Convert and Download
@@ -87,6 +89,7 @@ A free, secure, browser-based tool to migrate your notes between popular service
 |---|---|
 | [gkeep-parser](https://github.com/mgks/gkeep-parser) | Parse Google Keep Takeout HTML into structured JSON |
 | [enex-io](https://github.com/mgks/enex-io) | Generate and parse Evernote / Apple Notes `.enex` files |
+| [unpdf](https://github.com/unjs/unpdf) | Extract text from PDF notes (loaded on demand) |
 | [md-fusion](https://github.com/mgks/md-fusion) | Convert notes between HTML/JSON and Markdown with YAML Frontmatter |
 | [JSZip](https://stuk.github.io/jszip/) | Read and write `.zip` archives in-browser |
 | [SparkMD5](https://github.com/satazor/js-spark-md5) | MD5 hashes required for Evernote image resources |

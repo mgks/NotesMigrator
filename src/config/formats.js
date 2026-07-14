@@ -48,6 +48,15 @@ export const FORMATS = {
         desc: 'Structured Data',
         icon: 'json'
     },
+    // PDF text extraction (source only — output goes via ENEX/Markdown/JSON)
+    pdf: {
+        id: 'pdf',
+        name: 'PDF Document',
+        ext: ['pdf'],
+        type: 'source',
+        desc: 'Extract text from PDF notes',
+        icon: 'pdf'
+    },
     // TARGET ONLY
     html: {
         id: 'html',
@@ -74,7 +83,10 @@ export const CONVERSION_PATHS = [
     { from: 'notion', to: 'markdown', title: 'Clean Notion Markdown' },
     { from: 'enex', to: 'markdown', title: 'Evernote to Obsidian' },
     { from: 'enex', to: 'json', title: 'Evernote to JSON' },
-    { from: 'markdown', to: 'enex', title: 'Markdown to Apple Notes' }
+    { from: 'markdown', to: 'enex', title: 'Markdown to Apple Notes' },
+    { from: 'pdf', to: 'enex', title: 'PDF to Apple Notes' },
+    { from: 'pdf', to: 'markdown', title: 'PDF to Obsidian' },
+    { from: 'pdf', to: 'json', title: 'PDF to JSON' }
 ];
 
 export function detectFormat(mainFilename, fileList = []) {
@@ -92,6 +104,7 @@ export function detectFormat(mainFilename, fileList = []) {
         if (ext === 'enex') return 'enex';
         if (ext === 'json') return 'json';
         if (ext === 'md') return 'markdown';
+        if (ext === 'pdf') return 'pdf';
         if (ext === 'html' || ext === '_keep') return 'keep';
     }
 
@@ -101,6 +114,10 @@ export function detectFormat(mainFilename, fileList = []) {
     const hasMd = fileList.some(f => f.endsWith('.md'));
     const hasCsv = fileList.some(f => f.endsWith('.csv'));
     const hasEnex = fileList.some(f => f.endsWith('.enex'));
+    const hasPdf = fileList.some(f => f.toLowerCase().endsWith('.pdf'));
+
+    // A batch of just PDFs is a PDF batch.
+    if (hasPdf && !hasMd && !hasCsv && !hasEnex && !hasHtml && !hasJson) return 'pdf';
 
     if (hasMd && hasCsv) return 'notion';
     if (hasEnex) return 'enex';
