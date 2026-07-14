@@ -27,14 +27,15 @@ const ICONS = {
 
 // --- STATE ---
 const state = {
-    sources: [],      // Array of { type: 'zip'|'raw', file: File, entries: [], files?: [] }
+    sources: [],      // Array of { type: 'zip'|'raw'|'pdf', file: File, entries: [], files?: [], format?: string }
     allEntries: [],   // Flattened list for UI
     selectedIds: new Set(), // Format: "sourceIndex:path"
     worker: new Worker(new URL('./modules/worker.js', import.meta.url), { type: 'module' }),
     isProcessing: false,
     detectedFormat: null,
     keepJsonPaths: new Set(), // .json note paths, used to dedupe Keep HTML/JSON pairs
-    parsedPdfNotes: []   // notes already extracted when source === 'pdf'
+    parsedPdfNotes: [],  // legacy flat array; new code uses pdfPerSource
+    pdfPerSource: new Map()  // sourceIndex -> notes[] for PDF sources
 };
 
 // --- DOM ELEMENTS ---
@@ -212,42 +213,59 @@ async function importPdfFiles(pdfs) {
     if (!Array.isArray(pdfs) || pdfs.length === 0) return;
     const { parsePdfFile } = await import('./lib/pdf.js');
     state.parsedPdfNotes = [];
+    if (!state.pdfPerSource) state.pdfPerSource = new Map();
     const seen = new Set();
     let totalSkipped = 0;
+    let totalImported = 0;
+
     for (const file of pdfs) {
+        let fileNotes;
         try {
-            const notes = await parsePdfFile(file);
-            for (const note of notes) {
-                let title = (note.title || file.name || 'PDF note').trim() || 'PDF note';
-                let suffix = 2;
-                const base = title;
-                while (seen.has(title)) title = `${base} (${suffix++})`;
-                seen.add(title);
-                state.parsedPdfNotes.push({ ...note, title });
-            }
+            fileNotes = await parsePdfFile(file);
         } catch (err) {
             totalSkipped++;
             console.warn(`Skipped ${file.name}: ${err.message}`);
+            continue;
         }
+        // Build per-PDF source so the multi-source output flow can
+        // produce one PDF per input file in the result zip.
+        const safeBase = (file.name || 'PDF note').replace(/\.pdf$/i, '').trim() || 'PDF note';
+        const bag = [];
+        for (const note of fileNotes) {
+            let title = (note.title || file.name || 'PDF note').trim() || 'PDF note';
+            let suffix = 2;
+            const base = title;
+            while (seen.has(title)) title = `${base} (${suffix++})`;
+            seen.add(title);
+            bag.push({ ...note, title });
+        }
+        if (bag.length === 0) continue;
+        const sourceIndex = state.sources.length;
+        const entries = bag.map((n, i) => ({
+            path: `${file.name}#${i + 1}`,
+            name: n.title,
+            size: file.size || 0
+        }));
+        state.sources.push({
+            type: 'pdf', file, files: [file], entries, format: 'pdf'
+        });
+        state.pdfPerSource.set(sourceIndex, bag);
+        state.parsedPdfNotes.push(...bag);
+        finalizeBatch(sourceIndex, entries);
+        // Auto-select all the new entries.
+        for (const e of entries) {
+            state.selectedIds.add(`${sourceIndex}:${e.path}`);
+        }
+        totalImported += bag.length;
     }
 
-    if (state.parsedPdfNotes.length === 0) {
+    if (totalImported === 0) {
         showToast('No text could be extracted from the PDF(s).', 5000, 'error');
         return;
     }
-
-    state.sources.push({ type: 'pdf', files: pdfs, entries: [] });
-    const sourceIndex = state.sources.length - 1;
-    const entries = state.parsedPdfNotes.map((n, i) => ({
-        path: `${pdfs[0].name}#${i + 1}`,
-        name: n.title,
-        size: pdfs[0].size || 0
-    }));
-    finalizeBatch(sourceIndex, entries);
-    // Auto-select all notes for the user — they can deselect before converting.
-    state.selectedIds = new Set(entries.map(e => `${sourceIndex}:${e.path}`));
-    if (totalSkipped > 0) showToast(`Imported ${state.parsedPdfNotes.length} PDF note(s); ${totalSkipped} file(s) skipped.`, 5000, 'warning');
-    else showToast(`Imported ${state.parsedPdfNotes.length} PDF note(s).`);
+    updateResetVisibility();
+    if (totalSkipped > 0) showToast(`Imported ${totalImported} PDF note(s); ${totalSkipped} file(s) skipped.`, 5000, 'warning');
+    else showToast(`Imported ${totalImported} PDF note(s).`);
 }
 
 function handleNewFiles(fileList) {
@@ -301,22 +319,28 @@ function handleNewFiles(fileList) {
     // 1. Process ZIPs
     zips.forEach(zip => {
         const sourceIndex = state.sources.length;
-        state.sources.push({ type: 'zip', file: zip, entries: [] });
+        state.sources.push({ type: 'zip', file: zip, entries: [], format: null });
         els.scanStatus.innerText = `Scanning ${zip.name}...`;
         state.worker.postMessage({ type: 'scan', file: zip, sourceIndex });
     });
 
-    // 2. Process Valid Raw Files
-    if (validRaw.length > 0) {
+    // 2. Process Valid Raw Files — one source per file so a multi-format
+    //    batch produces multiple output files in the result zip.
+    for (const file of validRaw) {
+        const ext = '.' + file.name.split('.').pop().toLowerCase();
+        const entry = {
+            path: file.name,
+            name: file.name,
+            size: file.size
+        };
         const sourceIndex = state.sources.length;
-        const entries = validRaw.map(f => ({
-            path: f.name,
-            name: f.name,
-            size: f.size
-        }));
-        
-        state.sources.push({ type: 'raw', files: validRaw, entries });
-        finalizeBatch(sourceIndex, entries);
+        let format = 'unknown';
+        if (ext === '.enex') format = 'enex';
+        else if (ext === '.json') format = 'json';
+        else if (ext === '.md' || ext === '.markdown' || ext === '.mdx') format = 'markdown';
+        else if (ext === '.html' || ext === '.htm') format = 'html';
+        state.sources.push({ type: 'raw', file, files: [file], entries: [entry], format });
+        finalizeBatch(sourceIndex, [entry]);
     }
 }
 
@@ -445,6 +469,17 @@ function toggleSelectAll() {
 // --- CONVERSION PIPELINE ---
 
 async function startConversion() {
+    // Multi-source aware. If there is more than one source OR any
+    // PDF source, the per-source flow produces one file per source
+    // (and a zip if there are multiple). For a single text source,
+    // fall back to the legacy single-file flow for back-compat.
+    const _hasMultiSource = state.sources.length > 1 || state.sources.some(s => s.type === 'pdf');
+    if (_hasMultiSource) {
+        return finishConversionPerSourceBundle();
+    }
+
+    // Legacy single-source flow for one text source (back-compat).
+
     if (state.isProcessing) return;
     
     state.isProcessing = true;
@@ -693,6 +728,139 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
         }
 
     } catch (err) { handleError(err); }
+}
+
+// Per-source output assembly. Each source becomes one file in the
+// result bundle. For a single source the output is downloaded
+// directly; for multiple sources, the outputs are bundled into a
+// single zip. For PDF output each source gets one PDF in the zip.
+async function finishConversionPerSourceBundle() {
+    if (state.isProcessing) return;
+    state.isProcessing = true;
+    els.convertBtn.innerHTML = '<span>Processing...</span>';
+    els.convertBtn.disabled = true;
+    try {
+        const target = els.formatSelect.value;
+        const perSourceData = [];
+        const extractionErrors = [];
+
+        for (let i = 0; i < state.sources.length; i++) {
+            const source = state.sources[i];
+            const data = { source, sourceIndex: i, contentMap: {}, binaryMap: {}, dateMap: {}, pdfNotes: null };
+            perSourceData.push(data);
+
+            // PDFs are pre-parsed at upload time. Use the per-source
+            // map populated by importPdfFiles; the legacy state.parsedPdfNotes
+            // flat array is kept around for back-compat.
+            if (source.type === 'pdf' && state.pdfPerSource && state.pdfPerSource.has(i)) {
+                data.pdfNotes = state.pdfPerSource.get(i);
+                continue;
+            }
+
+            const prefix = `${i}:`;
+            const pathsForSource = [];
+            for (const id of state.selectedIds) {
+                if (id.startsWith(prefix)) pathsForSource.push(id.substring(prefix.length));
+            }
+            if (pathsForSource.length === 0) continue;
+
+            if (source.type === 'zip') {
+                const errors = await requestWorkerExtraction(source.file, pathsForSource, data.contentMap, data.binaryMap, data.dateMap);
+                if (errors) extractionErrors.push(...errors);
+            } else if (source.type === 'raw') {
+                for (const path of pathsForSource) {
+                    const fileObj = source.files.find(f => f.name === path);
+                    if (fileObj) {
+                        try {
+                            if (isImage(path)) data.binaryMap[path] = await fileObj.arrayBuffer();
+                            else data.contentMap[path] = await fileObj.text();
+                            if (fileObj.lastModified) data.dateMap[path] = new Date(fileObj.lastModified).toISOString();
+                        } catch (err) { extractionErrors.push({ path, msg: err.message }); }
+                    }
+                }
+            }
+        }
+
+        if (extractionErrors.length > 0) {
+            const hidden = extractionErrors.length > 3 ? ' (+' + (extractionErrors.length - 3) + ' more)' : '';
+            const names = extractionErrors.slice(0, 3).map(e => e.path.split('/').pop()).join(', ');
+            showToast('⚠️ ' + extractionErrors.length + ' file(s) skipped: ' + names + hidden, 6000, 'warning');
+            console.warn('Extraction errors:', extractionErrors);
+        }
+
+        const { buildSourceOutputs, buildOutputBundle } = await import('./lib/output.js');
+        // Parse each source by its format. PDF sources already have
+        // notes ready; text sources need parsing.
+        const sources = perSourceData.map(data => {
+            const source = data.source;
+            let notes;
+            if (data.pdfNotes) {
+                notes = data.pdfNotes;
+            } else {
+                notes = parseSourceNotesForOutput(source, data.contentMap, data.dateMap);
+            }
+            return Object.assign({}, data, { source, notes });
+        }).filter(s => s.notes.length > 0);
+
+        if (sources.length === 0) {
+            throw new Error('No notes were extractable from the dropped files.');
+        }
+
+        // Build per-source outputs.
+        const opts = { generateEnex: generateEnexWithResources };
+        const outputs = await buildSourceOutputs(sources, target, opts);
+
+        if (sources.length === 1) {
+            // Single source: download the file directly.
+            saveAs(outputs[0].blob, outputs[0].name);
+        } else {
+            // Multi-source: bundle into a single zip.
+            const zip = await buildOutputBundle(sources, target, opts);
+            saveAs(zip, 'migrator-export-' + getTimestamp() + '.zip');
+        }
+        if (target === 'pdf') {
+            showToast('Choose "Save as PDF" in the print dialog to export each PDF in the zip.', 5000);
+        }
+        finishSuccess();
+    } catch (err) { handleError(err); } finally {
+        state.isProcessing = false;
+        els.convertBtn.innerHTML = '<span>Download</span>' + (els.convertBtn.dataset.icon || '');
+        els.convertBtn.disabled = false;
+    }
+}
+
+function parseSourceNotesForOutput(source, contentMap, dateMap) {
+    const notes = [];
+    const fileDate = Object.values(dateMap)[0] || new Date().toISOString();
+    const applyDate = (n) => {
+        n.created = n.created || fileDate;
+        n.updated = n.updated || fileDate;
+    };
+    for (const [path, content] of Object.entries(contentMap)) {
+        try {
+            let note = null;
+            const fmt = source.format || 'unknown';
+            if (fmt === 'keep') {
+                note = path.endsWith('.json') ? parseKeepJson(content) : parseKeepHtml(content);
+            } else if (fmt === 'enex') {
+                note = parseEnex(content);
+            } else if (fmt === 'markdown') {
+                note = fromMarkdown(content);
+            } else if (fmt === 'json') {
+                note = JSON.parse(content);
+            }
+            if (Array.isArray(note)) {
+                note.forEach(applyDate);
+                notes.push(...note);
+            } else if (note) {
+                applyDate(note);
+                notes.push(note);
+            }
+        } catch (e) {
+            console.warn('Skip ' + path + ' in ' + (source.file && source.file.name || 'source') + ': ' + e.message);
+        }
+    }
+    return notes;
 }
 
 async function generateEnexWithResources(notes, binaryMap) {

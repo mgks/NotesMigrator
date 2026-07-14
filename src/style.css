@@ -78,6 +78,12 @@ header {
     justify-content: center;
     color: var(--text);
     cursor: pointer;
+}
+
+/* Make the [hidden] attribute authoritative even for elements that
+   would otherwise be display:flex (icon-btn, dock, etc.). The reset
+   button and other "show only when relevant" controls rely on this. */
+[hidden] { display: none !important; }
     transition: all 0.2s;
 }
 
