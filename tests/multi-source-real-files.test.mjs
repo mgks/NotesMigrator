@@ -45,7 +45,7 @@ created: 2026-02-15T10:00:00Z
 
 test('multi-source real files: zip with one file per real source', async () => {
   const { buildSourceOutputs, buildOutputBundle } = await import(
-    '/Users/mac/Workspace/GitHub/mgks/Migrator/NotesMigrator/src/lib/output.js'
+    '../src/lib/output.js'
   );
 
   const tmp = mkdtempSync(join(tmpdir(), 'mreal-'));

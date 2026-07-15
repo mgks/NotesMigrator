@@ -30,7 +30,7 @@ test('multi-source: importPdfFiles populates one source per PDF', async () => {
 });
 
 test('multi-source: buildOutputBundle produces one zip entry per source', async () => {
-    const { buildOutputBundle } = await import('/Users/mac/Workspace/GitHub/mgks/Migrator/NotesMigrator/src/lib/output.js');
+    const { buildOutputBundle } = await import('../src/lib/output.js');
     // Construct 3 fake sources, each with a tiny note payload. The
     // first is treated as PDF (uses jsPDF), the others as plain text.
     const sources = [
@@ -81,7 +81,7 @@ test('multi-source: buildOutputBundle produces one zip entry per source', async 
 });
 
 test('multi-source: buildSourceOutputs (no zip) returns one entry per source', async () => {
-    const { buildSourceOutputs } = await import('/Users/mac/Workspace/GitHub/mgks/Migrator/NotesMigrator/src/lib/output.js');
+    const { buildSourceOutputs } = await import('../src/lib/output.js');
     const sources = [
         { source: { file: { name: 'a.enex' } }, notes: [{ title: 'A', content: 'x', created: '2026-01-01T00:00:00Z', tags: [] }] },
         { source: { file: { name: 'b.enex' } }, notes: [{ title: 'B', content: 'y', created: '2026-01-01T00:00:00Z', tags: [] }] }
@@ -95,7 +95,7 @@ test('multi-source: buildSourceOutputs (no zip) returns one entry per source', a
 });
 
 test('multi-source: sourceFilename strips extension and normalises', async () => {
-    const { sourceFilename } = await import('/Users/mac/Workspace/GitHub/mgks/Migrator/NotesMigrator/src/lib/output.js');
+    const { sourceFilename } = await import('../src/lib/output.js');
     // Spaces and special chars are replaced with '_' (filesystem-safe).
     assert.equal(sourceFilename({ file: { name: 'My Notes.pdf' } }, 'pdf'), 'My_Notes.pdf');
     assert.equal(sourceFilename({ file: { name: 'Takeout (Keep) - 2024-01-15.zip' } }, 'md'), 'Takeout_Keep_-_2024-01-15.md');
