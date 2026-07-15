@@ -1,0 +1,6 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/index-P21pRuyG.js","assets/index-DOJsli7L.js","assets/index-KOWQ5-LH.css"])))=>i.map(i=>d[i]);
+import{_ as g}from"./index-DOJsli7L.js";let r=null;async function l(){return r===null&&(r=(await g(()=>import("./index-P21pRuyG.js"),__vite__mapDeps([0,1,2]))).extractText),r}function m(t){return String(t??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function o(t){if(!t)return;const n=t instanceof Date?t:new Date(t);return Number.isNaN(n.getTime())?void 0:n.toISOString()}async function D(t){if(!t)throw new Error("parsePdfFile: file is required");const n=t instanceof ArrayBuffer?t:await t.arrayBuffer(),e=await(await l())(n,{mergePages:!1}),a=Array.isArray(e?.text)?e.text:[e?.text??""],i=(t.name||"PDF note").replace(/\.pdf$/i,"").replace(/[^a-zA-Z0-9 _.-]+/g," ").trim()||"PDF note",s=a.map((f,p)=>{const u=m(f);return`${a.length>1?`<h2>Page ${p+1}</h2>
+`:""}<p>${u.replace(/\r?\n/g,`</p>
+<p>`)}</p>`}).join(`
+<hr/>
+`)||"<p>(empty PDF)</p>",c=o(e?.info?.CreationDate),d=o(e?.info?.ModDate);return[{title:i,content:s,tags:[],created:c,updated:d,isArchived:!1,isPinned:!1,isTrashed:!1,attachments:[]}]}export{D as parsePdfFile};
