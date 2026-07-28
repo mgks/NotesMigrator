@@ -73,7 +73,7 @@ export const OUTPUT_OPTIONS = [
     { id: 'enex', name: 'Apple Notes / Evernote (.enex)' },
     { id: 'markdown', name: 'Obsidian / Markdown (.zip)' },
     { id: 'json', name: 'Raw Data (.json)' },
-    { id: 'pdf', name: 'PDF Document (Print to PDF)' }
+    { id: 'pdf', name: 'PDF Document (.pdf)' }
 ];
 
 export const CONVERSION_PATHS = [

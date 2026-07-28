@@ -32,15 +32,21 @@ test('multi-source: importPdfFiles populates one source per PDF', async () => {
 test('multi-source: buildOutputBundle produces one zip entry per source', async () => {
     const { buildOutputBundle } = await import('../src/lib/output.js');
     // Construct 3 fake sources, each with a tiny note payload. The
-    // first is treated as PDF (uses jsPDF), the others as plain text.
+    // first is a real PDF (pass-through mode kicks in); the others
+    // are text sources that get converted to the chosen target.
+    const pdfBlob = new Blob([SAMPLE_PDF], { type: 'application/pdf' });
+    // name setter doesn't survive on Blob in Node, so override toString
+    // so sourceFilename produces a sensible filename.
+    Object.defineProperty(pdfBlob, 'name', { value: 'a.pdf' });
     const sources = [
-        { source: { file: { name: 'a.pdf' }, format: 'pdf' }, notes: [{ title: 'A', content: '<p>a</p>', created: '2026-01-01T00:00:00Z', tags: [] }] },
+        { source: { file: pdfBlob, format: 'pdf' }, notes: [{ title: 'A', content: '<p>a</p>', created: '2026-01-01T00:00:00Z', tags: [] }] },
         { source: { file: { name: 'b.enex' } }, notes: [{ title: 'B', content: 'x', created: '2026-01-01T00:00:00Z', tags: [] }] },
         { source: { file: { name: 'c.md' } }, notes: [{ title: 'C', content: 'y', created: '2026-01-01T00:00:00Z', tags: [] }] }
     ];
     const tmp = mkdtempSync(join(tmpdir(), 'multi-'));
     try {
-        // Test 1: PDF target → expect a zip with 3 entries, one .pdf per source
+        // Test 1: PDF target → 3 entries; the PDF source passes through
+        // as the original PDF, the other two get rendered as PDFs via jsPDF.
         const pdfZip = await buildOutputBundle(sources, 'pdf');
         assert.ok(pdfZip instanceof Blob);
         const buf1 = Buffer.from(await pdfZip.arrayBuffer());
@@ -53,28 +59,33 @@ test('multi-source: buildOutputBundle produces one zip entry per source', async 
             assert.ok(content.byteLength > 0, `entry ${n} should not be empty`);
         }
 
-        // Test 2: JSON target → expect a zip with 3 entries. The first
-        // source has format 'pdf' so it gets a .pdf even in JSON mode.
+        // Test 2: JSON target → the PDF source still passes through as
+        // the original PDF file (PDFs are pass-through regardless of
+        // target); the text sources become .json.
         const jsonZip = await buildOutputBundle(sources, 'json');
         const buf2 = Buffer.from(await jsonZip.arrayBuffer());
         const zip2 = await JSZip.loadAsync(buf2);
         const names2 = Object.keys(zip2.files).sort();
         assert.equal(names2.length, 3);
-        // First source is .pdf (format override); the other two are .json.
-        assert.ok(names2[0].endsWith('.pdf'));
-        assert.ok(names2[1].endsWith('.json'));
-        assert.ok(names2[2].endsWith('.json'));
+        const aPdfEntry = names2.find(n => n === 'a.pdf');
+        assert.ok(aPdfEntry, `a.pdf should pass through to JSON target (got ${names2})`);
+        for (const n of names2) {
+            if (n === 'a.pdf') continue; // PDF binary is its own format
+            assert.ok(n.endsWith('.json'), `JSON target text entries should be .json (got ${n})`);
+        }
 
-        // Test 3: markdown target → expect 3 entries. The first source
-        // has format 'pdf' so it gets a .pdf even in markdown mode.
+        // Test 3: markdown target → PDF still passes through, text sources
+        // become .md.
         const mdZip = await buildOutputBundle(sources, 'markdown');
         const buf3 = Buffer.from(await mdZip.arrayBuffer());
         const zip3 = await JSZip.loadAsync(buf3);
         const names3 = Object.keys(zip3.files).sort();
         assert.equal(names3.length, 3);
-        assert.ok(names3[0].endsWith('.pdf'));
-        assert.ok(names3[1].endsWith('.md'));
-        assert.ok(names3[2].endsWith('.md'));
+        assert.ok(names3.includes('a.pdf'), `a.pdf should pass through to markdown target`);
+        for (const n of names3) {
+            if (n === 'a.pdf') continue;
+            assert.ok(n.endsWith('.md'), `Markdown target text entries should be .md (got ${n})`);
+        }
     } finally {
         rmSync(tmp, { recursive: true, force: true });
     }

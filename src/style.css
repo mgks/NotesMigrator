@@ -78,14 +78,13 @@ header {
     justify-content: center;
     color: var(--text);
     cursor: pointer;
+    transition: all 0.2s;
 }
 
 /* Make the [hidden] attribute authoritative even for elements that
    would otherwise be display:flex (icon-btn, dock, etc.). The reset
    button and other "show only when relevant" controls rely on this. */
 [hidden] { display: none !important; }
-    transition: all 0.2s;
-}
 
 .icon-btn:hover {
     background: var(--hover);
@@ -691,3 +690,135 @@ body.wiki-page #appStage {
 #toast.toast-error   { background: #dc2626; color: #fff; }
 
 [data-theme="dark"] #toast.toast-info { background: #2d2d2d; }
+/* --- Progress overlay ---
+   Shown during scan/extract/convert so the user knows the app is busy.
+   Uses a backdrop-filter blur on the page underneath plus a centred
+   card with a spinner, label, indeterminate progress bar, and detail
+   text. CSS-only animation; no JS work on the hot path. */
+.progress-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    pointer-events: none;
+    transition: opacity 0.18s ease-out;
+    opacity: 1;
+}
+
+.progress-overlay.hidden {
+    opacity: 0;
+    pointer-events: none !important;
+}
+
+.progress-card {
+    background: var(--dock-bg);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 32px;
+    min-width: 280px;
+    max-width: 420px;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    pointer-events: auto;
+}
+
+.progress-spinner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    border-top-color: var(--text);
+    animation: progress-spin 0.9s linear infinite;
+}
+
+@keyframes progress-spin {
+    to { transform: rotate(360deg); }
+}
+
+.progress-label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--text);
+    border-radius: 999px;
+    transition: width 0.25s ease-out;
+}
+
+/* Indeterminate shimmer when no real percentage is known yet. */
+.progress-bar-fill.indeterminate {
+    width: 35% !important;
+    animation: progress-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes progress-shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(285%); }
+}
+
+.progress-detail {
+    font-size: 0.85rem;
+    color: var(--sub);
+    text-align: center;
+    font-family: 'Fira Code', monospace;
+    min-height: 1.2em;
+    word-break: break-all;
+    max-width: 360px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Body class applied while the overlay is up. Blurs and dims the page
+   underneath so the floating card sits in focus. Backdrop-filter is
+   a progressive enhancement; the dim layer covers browsers that
+   don't support it. */
+body.progress-active {
+    overflow: hidden;
+}
+
+body.progress-active #appStage,
+body.progress-active header,
+body.progress-active .dock {
+    filter: blur(6px) saturate(0.8);
+    transition: filter 0.2s ease-out;
+    pointer-events: none;
+}
+
+body.progress-active::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.18);
+    z-index: 90;
+    pointer-events: none;
+}
+
+/* Visually mark the format selector as inert when all selected
+   sources are PDFs (the format is irrelevant because PDFs pass
+   through unchanged). */
+.select-wrapper select:disabled,
+.select-wrapper select[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

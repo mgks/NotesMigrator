@@ -4,6 +4,7 @@
 // the output is downloaded directly.
 
 import { jsPDF } from "jspdf";
+import { toMarkdown } from "md-fusion";
 
 // Strip basic HTML to plain text for jsPDF output.
 function htmlToText(html) {
@@ -28,39 +29,6 @@ function outputBasename(source) {
   return name.replace(/\.[a-z0-9]+$/i, "").replace(/[^a-z0-9._-]+/gi, "_").slice(0, 80) || "note";
 }
 
-// Parse a per-source contentMap by format. Returns notes[] for that
-// source. Each source is parsed independently and produces one output
-// file.
-function parseSourceNotes(source, contentMap, binaryMap, dateMap) {
-  const notes = [];
-  const fileDate = Object.values(dateMap)[0] || new Date().toISOString();
-  const applyDate = (n) => {
-    n.created = n.created || fileDate;
-    n.updated = n.updated || fileDate;
-  };
-  for (const [path, content] of Object.entries(contentMap)) {
-    try {
-      let note = null;
-      const fmt = source.format || "unknown";
-      if (fmt === "keep") {
-        note = path.endsWith(".json") ? globalThis.parseKeepJson(content) : globalThis.parseKeepHtml(content);
-      } else if (fmt === "enex") note = globalThis.parseEnex(content);
-      else if (fmt === "markdown") note = globalThis.fromMarkdown(content);
-      else if (fmt === "json") note = JSON.parse(content);
-      if (Array.isArray(note)) {
-        note.forEach(applyDate);
-        notes.push(...note);
-      } else if (note) {
-        applyDate(note);
-        notes.push(note);
-      }
-    } catch (e) {
-      console.warn("Skip " + path + " in " + (source.file?.name || "source") + ": " + e.message);
-    }
-  }
-  return notes;
-}
-
 // Build a per-source ENEX file using the inline generator from main.js.
 // Falls back to a simple stub if the helper isn't available.
 function buildEnexForSource(source, notes, generateEnex) {
@@ -77,7 +45,11 @@ function buildEnexForSource(source, notes, generateEnex) {
 }
 
 function buildMarkdownForSource(notes) {
-  return notes.map(n => globalThis.toMarkdown(n)).join("\n\n---\n\n");
+  // Use the imported md-fusion helper directly instead of looking it
+  // up on globalThis (which only works when output.js is loaded as a
+  // script in a page that happens to set the helper globally). Same
+  // helpers are also used by main.js, so we keep them as ESM imports.
+  return notes.map(n => toMarkdown(n)).join("\n\n---\n\n");
 }
 
 function buildJsonForSource(notes) {
@@ -152,24 +124,51 @@ export async function buildSourceOutputs(sources, format, opts = {}) {
   const outputs = [];
   for (const item of sources) {
     const source = item.source ?? item;
+    // Accept notes from either the outer wrapper or source.notes so
+    // both the test fixtures and the live main.js pipeline work
+    // without callers having to mutate one specific shape.
+    const notes = (item.notes && item.notes.length ? item.notes : null)
+      || (source.notes && source.notes.length ? source.notes : null)
+      || source.pdfNotes
+      || [];
+
+    // PDF pass-through: PDFs are binary files, not text notes, and
+    // forcing them through JSON / ENEX / Markdown produces lossy or
+    // empty output (the text extraction is lossy and the user can't
+    // reasonably read a 30-page PDF inside an ENEX cell). We pass
+    // the original bytes through unchanged so the user gets the same
+    // file back in the output bundle, regardless of the chosen target.
+    // Only do this when the source actually carries the original
+    // binary (source.file); some test fixtures and zip-internal PDFs
+    // pass pdfNotes without a file, in which case we fall through to
+    // the regular text conversion path.
+    if (source.format === "pdf" && source.file) {
+      const fileName = (source.file?.name || "document.pdf").replace(/[^a-z0-9._-]+/gi, "_") || "document.pdf";
+      outputs.push({ name: fileName, blob: source.file, source });
+      continue;
+    }
+
     let blob, name;
-    if (source.format === "pdf" || source.pdfNotes) {
-      const notes = source.pdfNotes || [];
-      blob = buildPdfForSource(source, notes);
+    // Only force a PDF output when the user actually asked for PDF.
+    // When a PDF source is converted to JSON/ENEX/Markdown, its
+    // pdfNotes are normal notes — route them through the regular
+    // pipeline so the user gets the format they selected.
+    if (format === "pdf" && (source.format === "pdf" || source.pdfNotes)) {
+      blob = buildPdfForSource(source, source.pdfNotes || notes);
       name = sourceFilename(source, "pdf");
     } else if (format === "json") {
-      blob = new Blob([buildJsonForSource(source.notes || [])], { type: "application/json" });
+      blob = new Blob([buildJsonForSource(notes)], { type: "application/json" });
       name = sourceFilename(source, "json");
     } else if (format === "markdown") {
-      blob = new Blob([buildMarkdownForSource(source.notes || [])], { type: "text/markdown;charset=utf-8" });
+      blob = new Blob([buildMarkdownForSource(notes)], { type: "text/markdown;charset=utf-8" });
       name = sourceFilename(source, "markdown");
     } else if (format === "enex") {
-      const xml = buildEnexForSource(source, source.notes || [], opts.generateEnex);
+      const xml = buildEnexForSource(source, notes, opts.generateEnex);
       blob = new Blob([xml], { type: "application/xml" });
       name = sourceFilename(source, "enex");
     } else {
-      // Unknown format; fall back to JSON.
-      blob = new Blob([buildJsonForSource(source.notes || [])], { type: "application/json" });
+      // Unknown target; fall back to JSON so the user still gets data.
+      blob = new Blob([buildJsonForSource(notes)], { type: "application/json" });
       name = sourceFilename(source, "json");
     }
     outputs.push({ name, blob, source });

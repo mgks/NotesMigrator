@@ -121,6 +121,22 @@
         </div>
     </div>
 
+    <!-- Progress overlay. Shown during upload scanning, per-source
+         extraction and conversion so the user knows the app is busy.
+         Background blur is applied via the .progress-active class on
+         <body> so the rest of the page is muted without losing the
+         user's view of their data. Label is empty on initial load so
+         screen readers don't announce "Working..." before any work
+         has actually started. -->
+    <div id="progressOverlay" class="progress-overlay hidden" role="status" aria-live="polite">
+        <div class="progress-card">
+            <div class="progress-spinner" aria-hidden="true"></div>
+            <div class="progress-label" id="progressLabel"></div>
+            <div class="progress-bar"><div class="progress-bar-fill" id="progressBarFill"></div></div>
+            <div class="progress-detail" id="progressDetail"></div>
+        </div>
+    </div>
+
     <!-- 2. Main Stage -->
     <main id="appStage">
         
@@ -183,7 +199,7 @@
             </div>
             
             <div class="dock-actions">
-                <span class="label">Convert to</span>
+                <span class="label" id="dockLabel">Convert to</span>
                 <div class="select-wrapper">
                     <select id="formatSelect"></select>
                     <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>

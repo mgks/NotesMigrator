@@ -79,6 +79,12 @@ test('multi-source real files: zip with one file per real source', async () => {
     const keepNoteParsed = parseKeepJson(readFileSync(keepPath, 'utf-8'));
     const enexParsed = parseEnex(readFileSync(enexPath, 'utf-8'));
     const mdParsed = fromMarkdown(readFileSync(mdPath, 'utf-8'));
+    // Wrap the real PDF bytes in a Blob so buildSourceOutputs can
+    // pass it through unchanged. Define `name` on the Blob since
+    // Node doesn't expose File.name on a bare Blob.
+    const pdfBytes = readFileSync(pdfPath);
+    const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+    Object.defineProperty(pdfBlob, 'name', { value: 'paper.pdf' });
 
     const perSourceData = [
       {
@@ -91,16 +97,16 @@ test('multi-source real files: zip with one file per real source', async () => {
         source: { file: { name: 'reading-list.md', notes: [mdParsed] } }
       },
       {
-        // For PDF we would normally use pdfPerSource. For this test
-        // we'll skip it since parsing PDF requires the heavy pdfjs
-        // loader; the buildSourceOutputs path handles it via the
-        // format='pdf' branch in main.js.
-        source: { file: { name: 'paper.pdf' }, format: 'pdf', pdfNotes: [{ title: 'paper', content: 'placeholder', created: '2026-01-01T00:00:00Z', tags: [] }] }
+        // PDF source carries the original Blob (not just pdfNotes) so
+        // buildSourceOutputs can pass it through to the output zip
+        // unchanged, regardless of the chosen target format.
+        source: { file: pdfBlob, format: 'pdf', pdfNotes: [{ title: 'paper', content: 'placeholder', created: '2026-01-01T00:00:00Z', tags: [] }] }
       }
     ];
 
-    // 4. Build outputs (target = enex) — the PDF source should become
-    //    a PDF; the rest become ENEX.
+    // 4. Build outputs (target = enex). PDFs always pass through
+    //    unchanged regardless of the chosen target; text sources
+    //    become ENEX.
     const opts = { generateEnex };
     const outputs = await buildSourceOutputs(perSourceData, 'enex', opts);
     assert.equal(outputs.length, 4);
@@ -122,6 +128,10 @@ test('multi-source real files: zip with one file per real source', async () => {
       const data = await zip.files[n].async('uint8array');
       assert.ok(data.byteLength > 0, `entry ${n} must be non-empty`);
     }
+    // Confirm the PDF entry is byte-identical to the source file.
+    const pdfEntry = zip.file('paper.pdf');
+    const extractedPdf = await pdfEntry.async('uint8array');
+    assert.equal(extractedPdf.byteLength, pdfBytes.length, 'paper.pdf should pass through unchanged');
 
 // 6. Round-trip sanity: the keep source has format='json' so its
     //    output is the keep source's notes (not an ENEX). The ENEX

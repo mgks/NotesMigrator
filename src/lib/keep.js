@@ -6,7 +6,46 @@
 // the canonical import surface for tests and any other internal callers,
 // and to preserve the test surface that already passed.
 
-export { parseKeepJson } from 'gkeep-parser';
+export { parseKeepJson, parseKeepHtml } from 'gkeep-parser';
+
+// Heuristic: a parsed JSON object looks like a Google Keep note when
+// it carries at least one Keep-only field. Generic JSON exporters don't
+// emit listContent, labels, textContentHtml, microsec timestamps, or the
+// Keep boolean flags, so a single match is enough to identify a Keep
+// note with high confidence.
+export function looksLikeKeepNote(obj) {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+    return 'listContent' in obj
+        || 'labels' in obj
+        || 'textContentHtml' in obj
+        || 'createdTimestampUsec' in obj
+        || 'userEditedTimestampUsec' in obj
+        || 'isPinned' in obj
+        || 'isArchived' in obj
+        || 'isTrashed' in obj
+        || 'color' in obj;
+}
+
+// Heuristic: a string of HTML looks like a Google Keep note when it
+// carries one of Keep's signature markers. Keep Takeout HTML always
+// starts with `<?xml version="1.0" ?>` + XHTML 1.0 Strict doctype (a
+// quirk no other common exporter shares) and later uses
+// `class="title"`, `class="content"`, `class="heading"` for its
+// note body. The XHTML doctype prefix is what we check first because
+// it sits in the first 200 bytes of every Keep Takeout file even
+// when the inline CSS pushes the body class names past the first
+// few kilobytes.
+export function looksLikeKeepHtml(text) {
+    if (typeof text !== 'string' || text.length === 0) return false;
+    // Strongest signal: the XHTML 1.0 Strict doctype prefix only
+    // Google Keep Takeout uses, sitting in the first few hundred bytes.
+    if (/XHTML 1\.0 Strict/i.test(text.slice(0, 400))) return true;
+    // Fallback for stripped/rewrapped exports: any of the Keep body
+    // class names anywhere in the head of the file.
+    return /class="title"/.test(text)
+        || /class="content"/.test(text)
+        || /class="heading"/.test(text);
+}
 
 // Escape &, <, > for safe HTML interpolation.
 export function escapeHtml(str) {
@@ -46,6 +85,11 @@ export function keepEntryVisible(e, detectedFormat, keepJsonPaths) {
             const jsonSibling = e.path.slice(0, -5) + '.json';
             return !keepJsonPaths.has(jsonSibling);
         }
+        // Recognised non-Keep extensions always show through so a user
+        // who drops a Keep batch together with, say, a PDF, still sees
+        // the PDF in the list. Hidden-when-unknown would silently
+        // swallow mixed-format batches.
+        if (/\.(pdf|md|markdown|mdx|enex)$/i.test(e.name)) return true;
         return false;
     }
     if (detectedFormat === 'markdown' || detectedFormat === 'notion') return e.name.endsWith('.md');

@@ -1,5 +1,13 @@
 import JSZip from 'jszip';
 
+// Whitelist of file extensions the app knows how to handle. Anything
+// outside this set (.tar, .exe, .zip, .docx, …) is silently skipped at
+// scan time so the user never sees them in the file list, and never
+// gets a confused "unsupported format" toast for a .tar that snuck in
+// inside a Keep zip. Mirrors the allowedExts list in main.js so the
+// two layers agree on what counts as a note.
+const SUPPORTED_EXT = /\.(html?|json|enex|md|markdown|mdx|pdf|png|jpe?g|gif|webp)$/i;
+
 self.onmessage = async (e) => {
     const { type, file, filesToZip, binaryFiles, sourceIndex } = e.data;
 
@@ -7,21 +15,29 @@ self.onmessage = async (e) => {
         // --- SCAN ---
         if (type === 'scan') {
             postMessage({ type: 'status', msg: 'Reading archive...' });
-            
+
             if (file.name.endsWith('.zip')) {
                 const zip = await JSZip.loadAsync(file);
+                let hiddenCount = 0;
                 const entries = [];
                 zip.forEach((path, entry) => {
-                    if (!entry.dir) {
-                        entries.push({
-                            path: path,
-                            name: path.split('/').pop(),
-                            size: entry._data.uncompressedSize,
-                            lastModified: entry.date ? entry.date.toISOString() : null
-                        });
+                    if (entry.dir) return;
+                    // Skip anything outside the supported extension list.
+                    // The user already told us "supporting files can be
+                    // forwarded as it is in zipped file" — that means
+                    // anything we don't recognise goes away silently.
+                    if (!SUPPORTED_EXT.test(path)) {
+                        hiddenCount++;
+                        return;
                     }
+                    entries.push({
+                        path: path,
+                        name: path.split('/').pop(),
+                        size: entry._data.uncompressedSize,
+                        lastModified: entry.date ? entry.date.toISOString() : null
+                    });
                 });
-                postMessage({ type: 'scan_complete', entries, sourceIndex });
+                postMessage({ type: 'scan_complete', entries, sourceIndex, hiddenCount });
             }
         }
 
