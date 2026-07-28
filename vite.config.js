@@ -53,11 +53,12 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     chunkSizeWarningLimit: 1600,
-    rollupOptions: {
+    // Vite 8 renamed build.rollupOptions to build.rolldownOptions (the engine
+    // is now Rolldown, not Rollup). The rollup-compat layer still honours
+    // onwarn, kept here as a safety net for the gray-matter EVAL false-positive
+    // even though Oxc no longer flags that eval path.
+    rolldownOptions: {
       onwarn(warning, defaultHandler) {
-        // gray-matter ships an eval() path for CoffeeScript/TOML engines which
-        // we never invoke — suppress this known false-positive until md-fusion
-        // v0.2.1 (which swaps gray-matter for js-yaml) lands on the registry.
         if (
           warning.code === 'EVAL' &&
           warning.id?.includes('gray-matter')
