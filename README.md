@@ -26,14 +26,14 @@ A free, secure, browser-based tool to migrate your notes between popular service
 
 Every supported source × target, in one place:
 
-| From ↓ / To →   | **ENEX (Apple Notes / Evernote)** | **Markdown (Obsidian / Notion)** | **JSON** |
-| ---            | --- | --- | --- |
-| **Google Keep JSON / HTML** | ✓ | ✓ | ✓ |
-| **Notion (Markdown + CSV)** | ✓ | ✓ | — |
-| **Evernote (.enex)** | — | ✓ | ✓ |
-| **Markdown / Obsidian** | ✓ | — | — |
-| **JSON (raw)** | — | — | — |
-| **PDF (.pdf)** | ✓ | ✓ | ✓ |
+| From ↓ / To →   | **ENEX<br>(Apple Notes / Evernote)** | **Markdown<br>(Obsidian / Notion)** | **JSON (.json)** | **PDF (.pdf)**
+| ---            | --- | --- | --- | --- |
+| **Google Keep JSON / HTML** | ✓ | ✓ | ✓ | ✓ |
+| **Notion (Markdown + CSV)** | ✓ | ✓ | — | ✓ |
+| **Evernote (.enex)** | — | ✓ | ✓ | ✓ |
+| **Markdown / Obsidian** | ✓ | — | — | ✓ |
+| **JSON (raw)** | — | — | — | ✓ |
+| **PDF (.pdf)** | — | — | — | ✓ |
 
 ## Features
 
