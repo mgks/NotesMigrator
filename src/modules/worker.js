@@ -14,14 +14,31 @@ self.onmessage = async (e) => {
     try {
         // --- SCAN ---
         if (type === 'scan') {
-            postMessage({ type: 'status', msg: 'Reading archive...' });
+            postMessage({ type: 'status', msg: `Reading archive (${fmtBytes(file.size)})...` });
 
             if (file.name.endsWith('.zip')) {
+                // loadAsync parses the whole central directory in one go.
+                // On a large Takeout archive this is the single longest
+                // silent step in the app, so bracket it with heartbeats:
+                // the main thread's watchdog uses them to tell slow from
+                // stalled.
+                const t0 = Date.now();
                 const zip = await JSZip.loadAsync(file);
+                postMessage({
+                    type: 'status',
+                    msg: `Archive index read in ${((Date.now() - t0) / 1000).toFixed(1)}s — listing notes...`
+                });
                 let hiddenCount = 0;
+                let seen = 0;
                 const entries = [];
                 zip.forEach((path, entry) => {
                     if (entry.dir) return;
+                    // Heartbeat every 250 entries. A Takeout zip with
+                    // tens of thousands of files would otherwise be a
+                    // single silent block inside this loop.
+                    if (++seen % 250 === 0) {
+                        postMessage({ type: 'status', msg: `Listing notes — ${seen} files scanned` });
+                    }
                     // Skip anything outside the supported extension list.
                     // The user already told us "supporting files can be
                     // forwarded as it is in zipped file" — that means
@@ -38,6 +55,11 @@ self.onmessage = async (e) => {
                     });
                 });
                 postMessage({ type: 'scan_complete', entries, sourceIndex, hiddenCount });
+            } else {
+                // Defensive: a non-zip reaching the scan branch would
+                // otherwise post nothing at all, leaving the main thread
+                // waiting on a reply that never arrives.
+                postMessage({ type: 'scan_complete', entries: [], sourceIndex, hiddenCount: 0 });
             }
         }
 
@@ -49,7 +71,19 @@ self.onmessage = async (e) => {
             const dateMap = {};         // path -> ISO last-modified from ZIP central directory
             const errors = [];
             
+            const total = e.data.paths.length;
+            let done = 0;
             for (const path of e.data.paths) {
+                // Heartbeat per file (throttled for large batches) so a
+                // slow extraction is visibly slow rather than frozen.
+                if (total <= 50 || done % 25 === 0) {
+                    postMessage({
+                        type: 'status',
+                        msg: `Extracting ${done + 1} / ${total}`,
+                        percent: total ? Math.round((done / total) * 100) : 0
+                    });
+                }
+                done++;
                 const entry = zip.file(path);
                 if (entry) {
                     try {
@@ -96,9 +130,20 @@ self.onmessage = async (e) => {
         }
 
     } catch (err) {
-        postMessage({ type: 'error', msg: err.message });
+        // Prefix with the step so the main thread's timeline shows where
+        // it died, not just what the message was.
+        postMessage({ type: 'error', msg: `${type}: ${err.message}`, step: type, sourceIndex });
     }
 };
+
+// Byte formatter for status lines. Local to the worker; the main thread
+// has no need for it.
+function fmtBytes(n) {
+    if (!n && n !== 0) return 'unknown size';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+    return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
 
 function postMessage(data) {
     self.postMessage(data);

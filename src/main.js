@@ -11,6 +11,8 @@ import { toMarkdown, fromMarkdown } from 'md-fusion';
 import confetti from 'canvas-confetti';
 import JSZip from 'jszip'; 
 import SparkMD5 from 'spark-md5';
+import * as trace from './lib/trace.js';
+import { createProgressController } from './lib/progress.js';
 
 // --- Download helper ---
 // The previous file-saver style "synthetic anchor .click()" pattern
@@ -98,7 +100,8 @@ const state = {
     detectedFormat: null,
     keepJsonPaths: new Set(), // .json note paths, used to dedupe Keep HTML/JSON pairs
     parsedPdfNotes: [],  // legacy flat array; new code uses pdfPerSource
-    pdfPerSource: new Map()  // sourceIndex -> notes[] for PDF sources
+    pdfPerSource: new Map(),  // sourceIndex -> notes[] for PDF sources
+    pendingScans: 0   // archives posted to the worker but not yet reported back
 };
 
 // --- DOM ELEMENTS ---
@@ -120,9 +123,27 @@ document.addEventListener('DOMContentLoaded', () => {
         cacheAppElements();
         setupUI();
         setupWorker();
+        setupDiagnostics();
         checkSeoPreselect();
     }
 });
+
+// Surface a stalled pipeline step to the user.
+//
+// The watchdog in lib/trace.js fires when a step goes silent for longer
+// than any legitimate one takes. Without this the overlay just keeps
+// spinning, and a wedged run is indistinguishable from a slow one.
+function setupDiagnostics() {
+    trace.onStalled(({ phase, silentMs }) => {
+        const secs = Math.round(silentMs / 1000);
+        showToast(`Still working on "${phase}" — no progress for ${secs}s.`, 8000, 'error');
+        // The timeline goes to the console rather than a global, so a bug
+        // report can carry the step-by-step without shipping a debug
+        // surface on the production build.
+        console.warn(`[migrator] stalled in "${phase}" for ${secs}s`);
+        console.warn(trace.dump());
+    });
+}
 
 function cacheAppElements() {
     const ids = [
@@ -226,6 +247,7 @@ async function handleDrop(e) {
         // work in the overlay so the user knows the app hasn't frozen.
         showProgress('Reading folder', 'Walking the dropped folder...');
         
+        try {
         const entries = [];
         for (let i = 0; i < items.length; i++) {
             const entry = items[i].webkitGetAsEntry?.();
@@ -263,13 +285,21 @@ async function handleDrop(e) {
             if (Array.isArray(result)) droppedFiles.push(...result);
             else if (result) droppedFiles.push(result);
         }
+        } finally {
+            // Release the walk overlay here, not on one branch below.
+            // handleNewFiles opens its own overlay for the scan/read
+            // phase, so the two must not nest: previously this hide ran
+            // only on the "no readable files" path, which left the depth
+            // counter at 1 after every successful drop and pinned the
+            // overlay open for the rest of the session.
+            hideProgress();
+        }
     } else {
         droppedFiles = Array.from(e.dataTransfer.files);
     }
 
     if (droppedFiles.length > 0) handleNewFiles(droppedFiles);
     else {
-        hideProgress();
         showToast("No readable files found in drop.");
         switchView('upload');
     }
@@ -428,6 +458,10 @@ async function handleNewFiles(fileList) {
     // 1. Process ZIPs
     if (zips.length > 0) {
         showProgress('Scanning archive', zips.length === 1 ? zips[0].name : `${zips.length} archives`);
+        state.pendingScans = zips.length;
+        // Hand-off to the worker: from here nothing on this thread runs
+        // until a message comes back, so arm the stall watchdog.
+        trace.arm('scan');
     }
     zips.forEach(zip => {
         const sourceIndex = state.sources.length;
@@ -437,6 +471,7 @@ async function handleNewFiles(fileList) {
         // staying null through the rest of the pipeline.
         state.sources.push({ type: 'zip', file: zip, entries: [], format: 'unknown' });
         els.scanStatus.innerText = `Scanning ${zip.name}...`;
+        trace.mark('scan:post', zip.name, { sourceIndex, bytes: zip.size });
         state.worker.postMessage({ type: 'scan', file: zip, sourceIndex });
     });
 
@@ -764,45 +799,123 @@ async function startConversion() {
 
 function requestWorkerExtraction(file, paths, resultMap, binaryMap, dateMap) {
     return new Promise((resolve, reject) => {
+        const cleanup = () => {
+            state.worker.removeEventListener('message', handler);
+            state.worker.removeEventListener('error', crashed);
+            trace.disarm();
+        };
         const handler = (e) => {
+            // 'status' is a heartbeat from the extract loop; it keeps the
+            // watchdog fed and the detail line moving without resolving.
+            if (e.data.type === 'status') {
+                trace.mark('extract:progress', e.data.msg, { percent: e.data.percent });
+                return;
+            }
             if (e.data.type === 'extract_complete') {
                 Object.assign(resultMap, e.data.contentMap);
                 if (e.data.binaryMap) Object.assign(binaryMap, e.data.binaryMap);
                 if (e.data.dateMap) Object.assign(dateMap, e.data.dateMap);
-                state.worker.removeEventListener('message', handler);
+                trace.mark('extract:done', file?.name || '', {
+                    files: Object.keys(e.data.contentMap || {}).length,
+                    errors: (e.data.errors || []).length
+                });
+                cleanup();
                 resolve(e.data.errors || []);
             }
             if (e.data.type === 'error') {
-                state.worker.removeEventListener('message', handler);
+                trace.fail('extract', new Error(e.data.msg));
+                cleanup();
                 reject(new Error(e.data.msg));
             }
         };
+        // Without this, a worker that dies mid-extract leaves the promise
+        // pending forever and the conversion hangs with no error shown.
+        const crashed = (e) => {
+            trace.fail('extract:crash', new Error(e.message || 'worker crashed'));
+            cleanup();
+            reject(new Error(`Background worker failed during extraction: ${e.message || 'unknown error'}`));
+        };
+        trace.arm('extract');
+        trace.mark('extract:post', file?.name || '', { paths: paths.length, bytes: file?.size });
         state.worker.addEventListener('message', handler);
+        state.worker.addEventListener('error', crashed);
         state.worker.postMessage({ type: 'extract', file, paths });
     });
 }
 
 function setupWorker() {
     state.worker.addEventListener('message', async (e) => {
-        const { type, entries, blob, filename, msg, sourceIndex, hiddenCount } = e.data;
+        const { type, entries, blob, filename, msg, sourceIndex, hiddenCount, step } = e.data;
+        trace.mark('worker:msg', type, { sourceIndex, entries: entries?.length });
+
+        // Worker heartbeat during a long scan/extract. Carries no state;
+        // it exists so the watchdog and the overlay can tell "still
+        // chewing through a big archive" from "the worker is gone".
+        if (type === 'status') {
+            // Detail line only. The percentage is owned by the caller that
+            // opened the overlay (it spans all sources), so a per-archive
+            // percent here would make the bar jump backwards.
+            updateProgress(null, msg);
+        }
         if (type === 'scan_complete') {
+            state.pendingScans = Math.max(0, (state.pendingScans || 1) - 1);
             finalizeBatch(sourceIndex, entries);
             if (hiddenCount > 0) {
                 showToast(`${hiddenCount} unsupported file(s) inside the zip were skipped.`, 4000);
             }
-            // Drop the "Scanning archive..." overlay once the worker is
-            // done. Safe to call unconditionally — hideProgress is a
-            // depth counter, not a flag.
-            hideProgress();
+            // Drop the "Scanning archive..." overlay only once every
+            // queued archive has reported back. showProgress is called
+            // once for the whole batch, so a matching single hide keeps
+            // the depth counter balanced for multi-zip drops.
+            if (state.pendingScans === 0) {
+                trace.disarm();
+                hideProgress();
+                settleProgress('archive scan');
+            }
         }
         if (type === 'zip_complete') {
             await saveAs(blob, filename);
             finishSuccess();
         }
         if (type === 'error') {
-            // General error handler
-            if (!msg.includes('extract')) handleError(new Error(msg));
+            // A worker-side throw ends whatever step was in flight. Tear
+            // the overlay down before surfacing the error, otherwise the
+            // spinner outlives the run and reads as a hang. Extraction
+            // errors are reported by the per-request handler in
+            // requestWorkerExtraction, so only the overlay is cleared here.
+            trace.fail('worker', new Error(msg));
+            state.pendingScans = 0;
+            trace.disarm();
+            hideProgress();
+            // Extraction errors are surfaced by the per-request handler in
+            // requestWorkerExtraction; reporting them twice would stack
+            // two toasts for one failure.
+            if (step !== 'extract') handleError(new Error(msg));
         }
+    });
+
+    // A worker that dies outright (module load failure, OOM on a large
+    // archive, an uncaught throw outside the message handler) posts no
+    // message at all. Without these listeners the app waits forever on a
+    // reply that is never coming — the exact shape of a silent stall.
+    state.worker.addEventListener('error', (e) => {
+        trace.fail('worker:crash', new Error(e.message || 'worker crashed'), {
+            filename: e.filename, lineno: e.lineno
+        });
+        state.pendingScans = 0;
+        trace.disarm();
+        hideProgress();
+        handleError(new Error(`Background worker failed: ${e.message || 'unknown error'}`));
+    });
+
+    // Fires when a posted message can't be deserialized (a structured
+    // clone failure on the way back). Same recovery as a crash.
+    state.worker.addEventListener('messageerror', () => {
+        trace.fail('worker:messageerror', new Error('could not deserialize worker message'));
+        state.pendingScans = 0;
+        trace.disarm();
+        hideProgress();
+        handleError(new Error('Background worker sent an unreadable message.'));
     });
 }
 
@@ -1291,11 +1404,19 @@ function showToast(msg, duration = 3500, type = 'info') {
 // file 12 of 87"). The hot-path pipeline calls these helpers
 // synchronously; nothing here queues microtasks or holds the main
 // thread.
-let _progressDepth = 0;
-function showProgress(label, detail = '', opts = {}) {
+// Depth bookkeeping lives in lib/progress.js so it can be tested without
+// a DOM; everything below is just painting.
+const _progress = createProgressController(({ visible, label, detail, opts = {} }) => {
     if (!els.progressOverlay) return;
-    _progressDepth++;
-    els.progressLabel.textContent = label;
+    if (!visible) {
+        els.progressOverlay.classList.add('hidden');
+        document.body.classList.remove('progress-active');
+        return;
+    }
+    // A detail-only update (label === null) keeps the existing heading,
+    // so a worker heartbeat can move the detail line without clobbering
+    // the phase name the caller set.
+    if (label) els.progressLabel.textContent = label;
     if (els.progressDetail) els.progressDetail.textContent = detail;
     if (els.progressBarFill) {
         if (opts.indeterminate !== false && (opts.percent == null)) {
@@ -1307,36 +1428,49 @@ function showProgress(label, detail = '', opts = {}) {
     }
     els.progressOverlay.classList.remove('hidden');
     document.body.classList.add('progress-active');
+});
+
+function showProgress(label, detail = '', opts = {}) {
+    trace.mark('progress:show', `${label} — ${detail}`, { depth: _progress.depth() + 1 });
+    _progress.show(label, detail, opts);
 }
 
 function updateProgress(label, detail = '', opts = {}) {
-    if (!els.progressOverlay || _progressDepth === 0) return;
-    if (label) els.progressLabel.textContent = label;
-    if (els.progressDetail) els.progressDetail.textContent = detail;
-    if (els.progressBarFill) {
-        if (opts.indeterminate !== false && (opts.percent == null)) {
-            els.progressBarFill.classList.add('indeterminate');
-        } else {
-            els.progressBarFill.classList.remove('indeterminate');
-            els.progressBarFill.style.width = Math.max(0, Math.min(100, opts.percent || 0)) + '%';
-        }
-    }
+    // Traced before the depth guard: an update arriving with no overlay
+    // open is itself a symptom worth seeing in the timeline.
+    trace.mark('progress', label ? `${label} — ${detail}` : detail, { percent: opts.percent });
+    _progress.update(label, detail, opts);
 }
 
 function hideProgress() {
-    if (!els.progressOverlay) return;
-    _progressDepth = Math.max(0, _progressDepth - 1);
-    if (_progressDepth > 0) return;
-    els.progressOverlay.classList.add('hidden');
-    document.body.classList.remove('progress-active');
+    _progress.hide();
+    trace.mark('progress:hide', '', { depth: _progress.depth() });
+}
+
+// Called at points where the pipeline is known to be idle: every queued
+// archive has reported back, or a conversion has ended (either way).
+// showProgress/hideProgress are a depth counter, so a single unbalanced
+// show anywhere leaves the overlay pinned open with no error and no
+// spinner movement — which reads to the user as a hang even though the
+// work finished. Rather than trust every call site to be balanced, assert
+// it here: force the overlay down and record the leak so the timeline
+// names whoever failed to release it.
+function settleProgress(reason) {
+    const leaked = _progress.settle();
+    if (leaked > 0) {
+        trace.fail('progress:leak', new Error(`overlay still open after ${reason}`), { depth: leaked });
+        console.warn(`[migrator] progress overlay leaked ${leaked} level(s) after ${reason}`);
+    }
 }
 
 function finishSuccess() {
+    settleProgress('conversion');
     confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
     resetBtn();
 }
 
 function handleError(err) {
+    settleProgress('error');
     console.error('Conversion error:', err);
     showToast(`❌ ${err.message}`, 7000, 'error');
     resetBtn();
