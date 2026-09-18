@@ -11,6 +11,7 @@ import { toMarkdown, fromMarkdown } from 'md-fusion';
 import confetti from 'canvas-confetti';
 import JSZip from 'jszip'; 
 import SparkMD5 from 'spark-md5';
+import { generateEnexParts } from './lib/enex.js';
 
 // --- Download helper ---
 // The previous file-saver style "synthetic anchor .click()" pattern
@@ -907,8 +908,9 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
             finishSuccess();
         }
         else if (target === 'enex') {
-            const enexContent = await generateEnexWithResources(notes, binaryMap);
-            blob = new Blob([enexContent], { type: 'application/xml' });
+            // Parts array, not a string — see generateEnexParts.
+            const enexParts = generateEnexParts(notes, binaryMap);
+            blob = new Blob(enexParts, { type: 'application/xml' });
             fname += '.enex';
             await saveAs(blob, fname);
             finishSuccess();
@@ -1072,7 +1074,7 @@ async function finishConversionPerSourceBundle() {
         // Phase 3: build per-source outputs. buildSourceOutputs walks
         // the list internally; we wrap with our own progress loop so
         // the bar advances even when jsPDF is slow on big PDFs.
-        const opts = { generateEnex: generateEnexWithResources };
+        const opts = { generateEnex: generateEnexParts };
         updateProgress('Building output', `0 / ${sources.length}`, { percent: 85 });
         const outputs = await buildSourceOutputs(sources, target, opts);
         updateProgress('Building output', `${sources.length} / ${sources.length}`, { percent: 95 });
@@ -1170,70 +1172,6 @@ function parseSourceNotesForOutput(source, contentMap, dateMap) {
     return notes;
 }
 
-function generateEnexWithResources(notes, binaryMap) {
-    // Synchronous on purpose: the per-source bundle path passes this
-    // function into buildSourceOutputs, which calls it without await.
-    // Making this async would return a Promise that gets stringified
-    // to "[object Promise]" inside the resulting Blob (caught by the
-    // UI smoke test). All work here is in-memory string + base64
-    // building, no I/O — no need for async.
-    const ts = new Date().toISOString().replace(/[-:.]/g, '').split('T')[0] + 'T' +
-               new Date().toISOString().split('T')[1].replace(/[-:.]/g,'').slice(0,6) + 'Z';
-    
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE en-export SYSTEM "http://xml.evernote.com/pub/evernote-export3.dtd">\n<en-export export-date="${ts}" application="NotesMigrator" version="1.0">`;
-    for (const note of notes) {
-        let content = note.content || '';
-        let resourcesXml = '';
-        
-        if (note.attachments && note.attachments.length > 0) {
-            for (const att of note.attachments) {
-                const filename = att.filePath.split('/').pop();
-                const binKey = Object.keys(binaryMap).find(k => k.endsWith(filename));
-                if (binKey) {
-                    const arrayBuffer = binaryMap[binKey];
-                    const spark = new SparkMD5.ArrayBuffer();
-                    spark.append(arrayBuffer);
-                    const hashHex = spark.end();
-                    const base64 = Buffer.from(arrayBuffer).toString('base64');
-                    
-                    content += `<br/><br/><en-media type="${att.mimeType || 'image/jpeg'}" hash="${hashHex}" />`;
-                    
-                    resourcesXml += `
-<resource>
-  <data encoding="base64">${base64}</data>
-  <mime>${att.mimeType || 'image/jpeg'}</mime>
-  <resource-attributes><file-name>${filename}</file-name></resource-attributes>
-</resource>`;
-                }
-            }
-        }
-        
-        // Map checkbox inputs to Evernote <en-todo> items, escaping XML entities.
-        content = normalizeEnexContent(content);
-        
-        const title = escapeXml(note.title || 'Untitled');
-
-        // Preserve Keep labels as ENEX <tag> nodes, escaping XML entities.
-        const tagsXml = buildTagsXml(note);
-        
-        const createdTs = toEnexDate(note.created) || ts;
-        const updatedTs = toEnexDate(note.updated) || createdTs;
-
-        xml += `
-<note>
-  <title>${title}</title>
-  <content><![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">
-<en-note>${content}</en-note>]]></content>
-  <created>${createdTs}</created>
-  <updated>${updatedTs}</updated>${tagsXml}
-  ${resourcesXml}
-</note>`;
-    }
-    xml += `\n</en-export>`;
-    return xml;
-}
-
 // --- UTILS ---
 
 function isImage(name) {
@@ -1257,13 +1195,6 @@ function isVisibleEntry(e) {
 
 // Convert any parseable date string to Evernote's compact UTC format
 // (YYYYMMDDTHHMMSSZ). Returns null if the input can't be parsed.
-function toEnexDate(value) {
-    if (!value) return null;
-    const d = value instanceof Date ? value : new Date(value);
-    if (isNaN(d.getTime())) return null;
-    return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-}
-
 function getTimestamp() {
     return new Date().toISOString().slice(0, 10);
 }

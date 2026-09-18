@@ -31,17 +31,28 @@ function outputBasename(source) {
 
 // Build a per-source ENEX file using the inline generator from main.js.
 // Falls back to a simple stub if the helper isn't available.
+// Returns an ARRAY OF BLOB PARTS, not a string.
+//
+// ENEX inlines images as base64, so a large archive's document exceeds
+// V8's maximum string length (~512 MB) and joining the parts would throw
+// `RangeError: Invalid string length`. Keeping them as parts lets the
+// Blob constructor do the concatenation in its backing store, where no
+// such limit applies. Callers must spread into `new Blob(parts)` rather
+// than wrapping in `new Blob([parts])`.
 function buildEnexForSource(source, notes, generateEnex) {
   if (typeof generateEnex === "function") {
     // Caller passes generateEnexWithResources which uses SparkMD5
     // for inline image hashing. We pass an empty binaryMap for raw
     // files; the worker already attached image bytes via the main flow.
-    return generateEnex(notes, {});
+    const out = generateEnex(notes, {});
+    // Tolerate a generator that still returns a single string (the
+    // fallback below, and any caller-supplied helper in the tests).
+    return Array.isArray(out) ? out : [out];
   }
   // Fallback: write a minimal ENEX with no resources.
-  return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+  return ["<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
     "<!DOCTYPE en-export SYSTEM \"http://xml.evernote.com/pub/evernote-export3.dtd\">\n" +
-    "<en-export></en-export>";
+    "<en-export></en-export>"];
 }
 
 function buildMarkdownForSource(notes) {
@@ -163,8 +174,10 @@ export async function buildSourceOutputs(sources, format, opts = {}) {
       blob = new Blob([buildMarkdownForSource(notes)], { type: "text/markdown;charset=utf-8" });
       name = sourceFilename(source, "markdown");
     } else if (format === "enex") {
-      const xml = buildEnexForSource(source, notes, opts.generateEnex);
-      blob = new Blob([xml], { type: "application/xml" });
+      // Spread, not nest: buildEnexForSource hands back Blob parts so a
+      // multi-hundred-MB export never becomes a single JS string.
+      const parts = buildEnexForSource(source, notes, opts.generateEnex);
+      blob = new Blob(parts, { type: "application/xml" });
       name = sourceFilename(source, "enex");
     } else {
       // Unknown target; fall back to JSON so the user still gets data.
@@ -182,6 +195,12 @@ export async function buildOutputBundle(sources, format, opts = {}) {
   const jsZipMod = opts.jsZip || (await import("jszip")).default;
   const zip = new jsZipMod();
   for (const o of outputs) {
+    // NOTE: for a multi-source ENEX export this materialises each
+    // document as an ArrayBuffer in the JS heap. JSZip can consume a
+    // Blob directly in browsers, which would avoid the copy, but its
+    // `support.blob` flag is true under Node (global Blob exists) while
+    // the read path needs FileReader — so the obvious feature check
+    // silently breaks the tests. Left as a buffer copy deliberately.
     const data = o.blob instanceof Blob ? await o.blob.arrayBuffer() : o.blob;
     zip.file(o.name, data);
   }
