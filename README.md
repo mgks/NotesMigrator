@@ -5,9 +5,8 @@
     <b>Migrate notes between Google Keep, Apple Notes, Evernote, Notion, Markdown, and PDF.</b>
   </p>
   <p>
-    <img src="https://img.shields.io/github/v/release/mgks/notesmigrator?style=flat-square&color=38bd24" alt="release version">
-    <img src="https://img.shields.io/github/stars/mgks/notesmigrator?style=flat-square&logo=github&color=blue" alt="stars">
-    <img src="https://img.shields.io/github/license/mgks/notesmigrator.svg?style=flat-square&color=blue" alt="license">
+    <a href="#"><img src="https://img.shields.io/github/v/release/mgks/notesmigrator?style=flat-square&color=38bd24" alt="release version"></a>
+    <a href="#"><img src="https://img.shields.io/github/license/mgks/notesmigrator.svg?style=flat-square&color=blue" alt="license"></a>
   </p>
   <p>
     <h4>
@@ -15,7 +14,7 @@
     </h4>
   </p>
   <p>
-    <img width="800" alt="Notes Migrator screenshot" src="https://github.com/user-attachments/assets/fbfd6bc1-3616-4f32-816d-51dee8fcdb6b" />
+    <a href="https://migrator.mgks.dev"><img width="720" alt="Notes Migrator screenshot" src="https://github.com/user-attachments/assets/fbfd6bc1-3616-4f32-816d-51dee8fcdb6b" /></a>
   </p>
 
 </div>
@@ -90,12 +89,8 @@ All processing happens locally in your browser. Files are never uploaded to any 
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or pull request on [GitHub](https://github.com/mgks/NotesMigrator).
+Found a bug or have an idea? [Open an issue](https://github.com/mgks/NotesMigrator/issues) or [submit a pull request](https://github.com/mgks/NotesMigrator/pulls).
 
 ## License
 
-MIT
-
-> **{ github.com/mgks }**
-> 
-> ![Website Badge](https://img.shields.io/badge/Visit-mgks.dev-blue?style=flat&link=https%3A%2F%2Fmgks.dev) ![Sponsor Badge](https://img.shields.io/badge/%20%20Become%20a%20Sponsor%20%20-red?style=flat&logo=github&link=https%3A%2F%2Fgithub.com%2Fsponsors%2Fmgks)
+Distributed under the MIT License.
