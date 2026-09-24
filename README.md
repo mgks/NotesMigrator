@@ -1,20 +1,22 @@
 <div align="center">
 
   <h1>Migrator</h1>
+
   <p>
     <b>Migrate notes between Google Keep, Apple Notes, Evernote, Notion, Markdown, and PDF.</b>
   </p>
+
   <p>
     <a href="#"><img src="https://img.shields.io/github/v/release/mgks/notesmigrator?style=flat-square&color=38bd24" alt="release version"></a>
     <a href="#"><img src="https://img.shields.io/github/license/mgks/notesmigrator.svg?style=flat-square&color=blue" alt="license"></a>
   </p>
-  <p>
-    <h4>
-      <a href="https://migrator.mgks.dev">🚀 Open Web App</a>
-    </h4>
-  </p>
+
   <p>
     <a href="https://migrator.mgks.dev"><img width="720" alt="Notes Migrator screenshot" src="https://github.com/user-attachments/assets/fbfd6bc1-3616-4f32-816d-51dee8fcdb6b" /></a>
+  </p>
+
+  <p>
+    <a href="https://migrator.mgks.dev"><img alt="Static Badge" src="https://img.shields.io/badge/Web_App-Open?style=for-the-badge&logo=rocket&logoColor=white&label=Open&color=4A8B67"></a>
   </p>
 
 </div>
