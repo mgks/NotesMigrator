@@ -14,6 +14,7 @@ import SparkMD5 from 'spark-md5';
 import { generateEnexParts } from './lib/enex.js';
 import * as trace from './lib/trace.js';
 import { createProgressController } from './lib/progress.js';
+import { noteFilename } from './lib/filenames.js';
 
 // --- Download helper ---
 // The previous file-saver style "synthetic anchor .click()" pattern
@@ -1055,6 +1056,7 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
             const binaryFiles = [];
 
             // 1. Prepare Notes & Rewrite Image Links
+            const usedNames = new Set();
             notes.forEach(note => {
                 let md = toMarkdown(note);
                 
@@ -1070,8 +1072,7 @@ async function finishConversion(contentMap, binaryMap, dateMap = {}) {
                     return match;
                 });
 
-                const safeTitle = (note.title || 'note').replace(/[^a-z0-9\s-_]/gi, '').trim() || 'note';
-                filesToZip.push({ name: `${safeTitle}.md`, content: md });
+                filesToZip.push({ name: noteFilename(note.title, usedNames), content: md });
             });
 
             // 2. Prepare Assets
